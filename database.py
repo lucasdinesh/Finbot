@@ -10,10 +10,12 @@ T = TypeVar('T')  # Define a generic type variable for Repository
 
 @dataclass
 class Expenses:
+    id: Optional[int]
+    user_id: int
     name: str
-    amount: float
     date: str
-    id: Optional[int] = None
+    amount: float
+    installment: int
 
 
 class Repository(Generic[T], ABC):  # Generic Repository class
@@ -38,7 +40,6 @@ class Repository(Generic[T], ABC):  # Generic Repository class
         raise NotImplementedError
 
 
-
 class ExpenseRepository(Repository[Expenses]):
     def __init__(self) -> None:
         self.db_path = DATABASE
@@ -52,7 +53,14 @@ class ExpenseRepository(Repository[Expenses]):
     def create_table(self) -> None:
         with self.connect() as cursor:
             cursor.execute(
-                "CREATE TABLE IF NOT EXISTS expanses (id INTEGER PRIMARY KEY, name TEXT, date TEXT, amount REAL)"
+                """CREATE TABLE IF NOT EXISTS expenses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL, 
+                    name TEXT NOT NULL, 
+                    date TEXT NOT NULL DEFAULT (strftime('%d-%m-%Y', 'now')), 
+                    amount REAL NOT NULL,
+                    installment INTEGER
+                )"""
             )
 
     def get(self, id: int) -> Expenses:
@@ -62,67 +70,42 @@ class ExpenseRepository(Repository[Expenses]):
             if expense is None:
                 raise ValueError(f"Expense with id {id} does not exist")
             return Expenses(*expense)
-    #
-    # def get_all(self) -> list[Expanses]:
-    #     with self.connect() as cursor:
-    #         cursor.execute("SELECT * FROM expenses")
-    #         return [Expanses(*post) for post in cursor.fetchall()]
+
+    def get_all(self) -> list[Expenses]:
+        with self.connect() as cursor:
+            cursor.execute("SELECT * FROM expenses")
+            return [Expenses(*expense) for expense in cursor.fetchall()]
 
     def add(self, **kwargs: object) -> None:
-        if "name" in kwargs and "amount" in kwargs:
+        if "name" in kwargs and "amount" in kwargs and "installment" in kwargs and "user_id" in kwargs:
             with self.connect() as cursor:
                 cursor.execute(
-                    "INSERT INTO expenses (name, amount) VALUES (?, ?)",
-                    (kwargs["name"], kwargs["amount"]),
-                )
-        elif "amount" in kwargs:
-            with self.connect() as cursor:
-                cursor.execute(
-                    "INSERT INTO expenses (amount) VALUES (?)", (kwargs["amount"],)
-                )
-        elif "name" in kwargs:
-            with self.connect() as cursor:
-                cursor.execute(
-                    "INSERT INTO expenses (name) VALUES (?)", (kwargs["name"],)
+                    "INSERT INTO expenses (name, amount, installment, user_id) VALUES (?, ?, ?, ?)",
+                    (kwargs["name"], kwargs["amount"], kwargs["installment"], kwargs["user_id"]),
                 )
         else:
             raise ValueError("Must provide either name or amount")
 
-    # def update(self, id: int, **kwargs: object) -> None:
-    #     if "content" in kwargs and "title" in kwargs:
-    #         with self.connect() as cursor:
-    #             cursor.execute(
-    #                 "UPDATE expenses SET title=?, content=? WHERE id=?",
-    #                 (kwargs["title"], kwargs["content"], id),
-    #             )
-    #     elif "content" in kwargs:
-    #         with self.connect() as cursor:
-    #             cursor.execute(
-    #                 "UPDATE expenses SET content=? WHERE id=?", (kwargs["content"], id)
-    #             )
-    #     elif "title" in kwargs:
-    #         with self.connect() as cursor:
-    #             cursor.execute(
-    #                 "UPDATE expenses SET title=? WHERE id=?", (kwargs["title"], id)
-    #             )
-    #     else:
-    #         raise ValueError("Must provide either content or title")
+    def update(self, id: int, **kwargs: object) -> None:
+        if "content" in kwargs and "title" in kwargs:
+            with self.connect() as cursor:
+                cursor.execute(
+                    "UPDATE expenses SET title=?, content=? WHERE id=?",
+                    (kwargs["title"], kwargs["content"], id),
+                )
+        elif "content" in kwargs:
+            with self.connect() as cursor:
+                cursor.execute(
+                    "UPDATE expenses SET content=? WHERE id=?", (kwargs["content"], id)
+                )
+        elif "title" in kwargs:
+            with self.connect() as cursor:
+                cursor.execute(
+                    "UPDATE expenses SET title=? WHERE id=?", (kwargs["title"], id)
+                )
+        else:
+            raise ValueError("Must provide either content or title")
 
     def delete(self, id: int) -> None:
         with self.connect() as cursor:
             cursor.execute("DELETE FROM expenses WHERE id=?", (id,))
-
-
-# def main() -> None:
-#     repo = ExpenseRepository("finance.db")
-#     # repo.add(title="Hello", content="World")
-#     # repo.add(title="Foo", content="Bar")
-#     # print(repo.get_all())
-#     # repo.update(0, title="Hello World")
-#     # print(repo.get_all())
-#     # repo.delete(1)
-#     # print(repo.get_all())
-#
-#
-# if __name__ == "__main__":
-#     main()
