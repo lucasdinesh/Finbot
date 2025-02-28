@@ -124,7 +124,6 @@ class ExpenseRepository(Repository[Expenses]):
 
     def get_by_date_interval(self, start_date: str, end_date: str) -> list[Expenses]:
         with self.connect() as cursor:
-            print(start_date, end_date)
             cursor.execute("SELECT * FROM expenses WHERE date BETWEEN ? AND ?", (start_date, end_date))
             return [Expenses(*expense) for expense in cursor.fetchall()]
 
