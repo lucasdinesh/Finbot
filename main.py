@@ -7,7 +7,8 @@ from telebot import types
 
 import inline_calendar
 from config import TOKEN, local_mode, connection_string_neon_demo
-from database import IExpenseRepository, ExpenseRepository
+from database import IExpenseRepository
+from local_repository import LocalRepository
 from cloud_database import NeonPostgresRepository
 from reports import ReportGenerator
 from messages import *
@@ -20,7 +21,7 @@ class ExpenseRepositorySingleton:
     def get_instance() -> IExpenseRepository:
         if ExpenseRepositorySingleton._instance is None:
             if local_mode:
-                ExpenseRepositorySingleton._instance = ExpenseRepository()
+                ExpenseRepositorySingleton._instance = LocalRepository()
             else:
                 ExpenseRepositorySingleton._instance = NeonPostgresRepository(connection_string_neon_demo)
         return ExpenseRepositorySingleton._instance
