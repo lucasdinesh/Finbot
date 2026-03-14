@@ -11,13 +11,23 @@ from messages import MONTH_NAMES
 
 
 @dataclass
+class ExpenseDetailWithInstallment:
+    """Data class for expense with installment details."""
+    expense: Expenses
+    monthly_amount: float  # Pro-rata amount for the current month
+    current_installment: int  # Current installment number
+    total_installments: int  # Total installments
+
+
+@dataclass
 class MonthlySummary:
     """Data class for monthly expense summary."""
     year: int
     month: int
-    total_amount: float
+    total_amount: float  # Total pro-rata amount for the month
     total_expenses: int
-    expenses: List[Expenses]
+    expenses: List[Expenses]  # Original expenses list
+    expenses_with_installments: List[ExpenseDetailWithInstallment]  # Enhanced with installment info
     top_expenses: List[tuple]  # List of (name, amount) tuples
 
 
@@ -45,6 +55,39 @@ class ReportGenerator:
         """
         self.repository = repository
 
+    def _calculate_installment_info(self, expense: Expenses, target_year: int, target_month: int) -> tuple:
+        """
+        Calculate which installment we're on for a given target month.
+
+        Args:
+            expense: The expense object
+            target_year: Target year
+            target_month: Target month (1-12)
+
+        Returns:
+            Tuple of (monthly_amount, current_installment, total_installments)
+        """
+        # Parse expense date (format: DD-MM-YYYY)
+        date_parts = expense.date.split('-')
+        purchase_day = int(date_parts[0])
+        purchase_month = int(date_parts[1])
+        purchase_year = int(date_parts[2])
+
+        # Calculate months elapsed since purchase
+        months_elapsed = (target_year - purchase_year) * 12 + (target_month - purchase_month)
+
+        # Calculate monthly pro-rata amount and round to 2 decimal places
+        monthly_amount = round(float(expense.amount) / expense.installment, 2)
+
+        # Calculate current installment number (1-indexed)
+        current_installment = months_elapsed + 1
+
+        # Clamp current installment to total installments
+        current_installment = min(current_installment, expense.installment)
+        current_installment = max(current_installment, 1)
+
+        return monthly_amount, current_installment, expense.installment
+
     def get_monthly_summary(self, user_id: int, year: int, month: int) -> MonthlySummary:
         """
         Generate a comprehensive monthly summary for a user.
@@ -60,9 +103,27 @@ class ReportGenerator:
         expenses = self.repository.get_by_user_and_month(user_id, year, month)
         total_amount = self.repository.get_total_by_month(user_id, year, month)
 
-        # Get top 5 expenses by amount
+        # Calculate installment details for each expense
+        expenses_with_installments = []
+        pro_rata_total = 0.0
+        
+        for expense in expenses:
+            monthly_amount, current_installment, total_installments = self._calculate_installment_info(
+                expense, year, month
+            )
+            expenses_with_installments.append(
+                ExpenseDetailWithInstallment(
+                    expense=expense,
+                    monthly_amount=monthly_amount,
+                    current_installment=current_installment,
+                    total_installments=total_installments
+                )
+            )
+            pro_rata_total += monthly_amount
+
+        # Get top 5 expenses by pro-rata amount
         top_expenses = sorted(
-            [(e.name, float(e.amount)) for e in expenses],
+            [(detail.expense.name, detail.monthly_amount) for detail in expenses_with_installments],
             key=lambda x: x[1],
             reverse=True
         )[:5]
@@ -70,9 +131,10 @@ class ReportGenerator:
         return MonthlySummary(
             year=year,
             month=month,
-            total_amount=total_amount,
+            total_amount=pro_rata_total,
             total_expenses=len(expenses),
             expenses=expenses,
+            expenses_with_installments=expenses_with_installments,
             top_expenses=top_expenses,
         )
 
@@ -154,10 +216,11 @@ class ReportGenerator:
         text += MONTHLY_SUMMARY_TOTAL.format(total=summary.total_amount)
         text += MONTHLY_SUMMARY_COUNT.format(count=summary.total_expenses)
 
-        if summary.top_expenses:
+        if summary.expenses_with_installments:
             text += f"\n{MONTHLY_SUMMARY_TOP}"
-            for i, (name, amount) in enumerate(summary.top_expenses, 1):
-                text += f"{i}. {name}: R${amount:,.2f}\n"
+            for i, detail in enumerate(summary.expenses_with_installments[:5], 1):
+                text += f"{i}. {detail.expense.name}\n"
+                text += f"   💰 R${detail.monthly_amount:,.2f} | 📦 {detail.current_installment}/{detail.total_installments}\n"
 
         return text
 

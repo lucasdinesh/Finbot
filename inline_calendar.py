@@ -1,6 +1,7 @@
 import datetime
 import calendar
 import json
+from messages import CALENDAR_MONTH_NAMES, CALENDAR_WEEKDAY_NAMES
 
 
 def create_callback_data(action, year, month, day):
@@ -13,26 +14,32 @@ def separate_callback_data(data):
     return data.split(";")
 
 
-def create_calendar(year=None, month=None, prefix=""):
+def create_calendar(year=None, month=None, prefix="", language="en"):
     """
     Create an inline markup with the provided year and month.
     Adds a prefix to callback data for distinction.
     :param int year: Year to use in the calendar, if None, the current year is used.
     :param int month: Month to use in the calendar, if None, the current month is used.
     :param str prefix: A string to prefix all callback data (to differentiate calendars).
+    :param str language: Language for calendar text ('en' for English, 'pt' for Portuguese).
     :return: Returns the InlineKeyboardMarkup object with the calendar.
     """
     now = datetime.datetime.now()
     year = now.year if year is None else year
     month = now.month if month is None else month
+    
+    # Get month and weekday names for the selected language
+    month_names = CALENDAR_MONTH_NAMES.get(language, CALENDAR_MONTH_NAMES["en"])
+    weekday_names = CALENDAR_WEEKDAY_NAMES.get(language, CALENDAR_WEEKDAY_NAMES["en"])
+    
     data_ignore = create_callback_data(f"{prefix}IGNORE", year, month, 0)
     markup = {"inline_keyboard": []}
     # First row - Month and Year
-    row = [{"text": calendar.month_name[month] + " " + str(year), "callback_data": data_ignore}]
+    row = [{"text": month_names[month - 1] + " " + str(year), "callback_data": data_ignore}]
     markup["inline_keyboard"].append(row)
     # Second row - Week Days
     row = []
-    for day in ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]:
+    for day in weekday_names:
         row.append({"text": day, "callback_data": data_ignore})
     markup["inline_keyboard"].append(row)
 
@@ -56,6 +63,7 @@ def create_calendar(year=None, month=None, prefix=""):
     markup["inline_keyboard"].append(row)
 
     return json.dumps(markup)
+
 
 def process_calendar_selection(bot, update):
     """
