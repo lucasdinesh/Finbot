@@ -10,6 +10,7 @@ class ConversationManager:
         """Initialize state storage."""
         self._user_states: Dict[int, Dict[str, Any]] = {}
         self._date_selection_states: Dict[int, Dict[str, Any]] = {}
+        self._receipt_states: Dict[int, Dict[str, Any]] = {}
         self._shown_dates: Dict[int, tuple] = {}
         self._lock = Lock()
 
@@ -105,3 +106,27 @@ class ConversationManager:
                 del self._date_selection_states[chat_id]
             if chat_id in self._shown_dates:
                 del self._shown_dates[chat_id]
+
+    # Receipt / OCR state management
+
+    def set_receipt_state(self, user_id: int, state_data: Dict[str, Any]) -> None:
+        """Set complete receipt state for a user."""
+        with self._lock:
+            self._receipt_states[user_id] = state_data
+
+    def get_receipt_state(self, user_id: int) -> Dict[str, Any]:
+        """Get receipt state for a user, or empty dict."""
+        with self._lock:
+            return self._receipt_states.get(user_id, {})
+
+    def update_receipt_state(self, user_id: int, key: str, value: Any) -> None:
+        """Update a specific field in receipt state."""
+        with self._lock:
+            if user_id not in self._receipt_states:
+                self._receipt_states[user_id] = {}
+            self._receipt_states[user_id][key] = value
+
+    def clear_receipt_state(self, user_id: int) -> None:
+        """Remove receipt state for a user."""
+        with self._lock:
+            self._receipt_states.pop(user_id, None)

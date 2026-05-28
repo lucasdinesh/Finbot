@@ -2,8 +2,11 @@
 from handlers.base_handler import BaseHandler
 from services.expense_service import ExpenseService
 from utils.validators import ExpenseValidator
+import re
+
 from messages import (
-    ADD_VALUE_PROMPT, ADD_NAME_PROMPT, ADD_INSTALLMENTS_PROMPT, ADD_SUCCESS,
+    ADD_VALUE_PROMPT, ADD_NAME_PROMPT, ADD_DATE_PROMPT, ADD_DATE_INVALID,
+    ADD_INSTALLMENTS_PROMPT, ADD_SUCCESS,
     VALUE_INVALID, VALUE_MUST_BE_POSITIVE, NAME_EMPTY, NAME_TOO_LONG,
     NAME_NOT_ALPHANUMERIC, INSTALLMENTS_INVALID, INSTALLMENTS_TOO_LARGE,
     DELETE_PROMPT, DELETE_ID_INVALID, DELETE_NOT_FOUND,
@@ -80,13 +83,30 @@ class ExpenseHandler(BaseHandler):
             self.register_next_handler(message, self.process_name)
             return
         
-        # Save name and ask for installments
+        # Save name and ask for date
         self.state.update_user_state(message.from_user.id, "name_despesa", name)
+        self.send_info(message.chat.id, ADD_DATE_PROMPT)
+        self.register_next_handler(message, self.process_date)
+
+    def process_date(self, message) -> None:
+        """Step 4: Validate and process date, then ask for installments."""
+        date_str = message.text.strip()
+
+        if self.is_cancel_command(date_str):
+            return self.handle_cancel(message.chat.id)
+
+        date_pattern = re.compile(r'^\d{2}-\d{2}-\d{4}$')
+        if not date_pattern.match(date_str):
+            self.send_error(message.chat.id, ADD_DATE_INVALID)
+            self.register_next_handler(message, self.process_date)
+            return
+
+        self.state.update_user_state(message.from_user.id, "date_despesa", date_str)
         self.send_info(message.chat.id, ADD_INSTALLMENTS_PROMPT)
         self.register_next_handler(message, self.process_installments)
 
     def process_installments(self, message) -> None:
-        """Step 4: Validate and process installment count, then save to repository."""
+        """Step 5: Validate and process installment count, then save to repository."""
         parcelas_str = message.text.strip()
         
         # Check for cancel
@@ -105,13 +125,15 @@ class ExpenseHandler(BaseHandler):
         user_state = self.state.get_user_state(message.from_user.id)
         valor_despesa = float(user_state.get("valor_despesa", 0))
         name_despesa = user_state.get("name_despesa", "")
+        date_despesa = user_state.get("date_despesa")
         
         # Save to repository
         self.expense_service.create_expense(
             user_id=message.from_user.id,
             name=name_despesa,
             amount=valor_despesa,
-            installments=parcelas
+            installments=parcelas,
+            date=date_despesa,
         )
         
         # Clear state
@@ -121,7 +143,8 @@ class ExpenseHandler(BaseHandler):
         success_msg = ADD_SUCCESS.format(
             name=name_despesa,
             value=valor_despesa,
-            installments=parcelas
+            date=date_despesa or "hoje",
+            installments=parcelas,
         )
         self.send_success(message.chat.id, success_msg)
 

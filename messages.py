@@ -10,11 +10,14 @@ COMMANDS_HEADER = "👋 *Comandos Disponiveis:*\n\n"
 # Add Expense Messages
 ADD_VALUE_PROMPT = "Qual o valor da despesa?"
 ADD_NAME_PROMPT = "Qual o nome da despesa?"
+ADD_DATE_PROMPT = "Qual a data da despesa? (DD-MM-YYYY)"
+ADD_DATE_INVALID = "❌ Data inválida! Use o formato DD-MM-YYYY.\n_(Digite 'cancelar' para sair)_"
 ADD_INSTALLMENTS_PROMPT = "Escolha uma parcela:"
 ADD_SUCCESS = (
     "Despesa registrada com sucesso!\n"
     "Nome: {name}\n"
-    "Valor: {value}\n"
+    "Valor: R$ {value:.2f}\n"
+    "Data: {date}\n"
     "Parcelas: {installments}"
 )
 ADD_CANCELLED = "❌ Operação cancelada."
@@ -85,6 +88,29 @@ DATE_INTERVAL_TOO_LARGE = "❌ O intervalo entre as datas não pode exceder {max
 
 # Get All Expenses Messages
 GET_ALL_EXPENSES_FORMAT = "{name} - R${amount}"
+
+# OCR / Receipt Messages
+SCAN_PROMPT = "📸 Envie a foto do comprovante que deseja escanear."
+SCAN_PROCESSING = "⏳ Processando imagem... aguarde um momento."
+SCAN_ERROR = "❌ Não foi possível processar a imagem. Tente novamente com uma foto mais nítida e com boa iluminação."
+SCAN_NO_TEXT = "❌ Nenhum texto foi detectado na imagem. Certifique-se de que o comprovante está visível e tente novamente."
+SCAN_CONFIRM = (
+    "📋 *Dados encontrados:*\n\n"
+    "🏪 Estabelecimento: {store_name}\n"
+    "💰 Valor: R$ {amount:.2f}\n"
+    "📅 Data: {date}\n\n"
+    "Confirma o lançamento?"
+)
+SCAN_CONFIRM_LOW_CONFIDENCE = (
+    "⚠️ *Confiança baixa* nos dados extraídos.\n\n"
+    "📄 Texto reconhecido:\n```\n{raw_text}\n```\n\n"
+    "Os dados acima estão corretos?"
+)
+SCAN_EDIT_VALUE = "✏️ Valor atual: *R$ {current:.2f}*\nDigite o valor correto:"
+SCAN_EDIT_NAME = "✏️ Estabelecimento atual: *{current}*\nDigite o nome correto:"
+SCAN_EDIT_DATE = "✏️ Data atual: *{current}*\nDigite a data correta (DD-MM-YYYY):"
+SCAN_EDIT_INSTALLMENTS = "✏️ Parcelas atuais: *{current}*\nDigite o número correto (1-1000):"
+SCAN_NO_AMOUNT = "❌ Não foi possível identificar o valor no comprovante.\n\nDigite o valor manualmente:"
 
 # Month Names and Weekday Names (localization)
 MONTH_NAMES = [

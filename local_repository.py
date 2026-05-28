@@ -3,9 +3,13 @@ Local SQLite repository implementation for expenses.
 """
 
 import contextlib
+import logging
 import sqlite3
 from config import DATABASE
 from database import IExpenseRepository, Expenses
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class LocalRepository(IExpenseRepository):
@@ -58,7 +62,7 @@ class LocalRepository(IExpenseRepository):
 
     def get_by_user_and_month(self, user_id: int, year: int, month: int) -> list[Expenses]:
         with self.connect() as cursor:
-            print(f"Fetching expenses for user_id={user_id}, year={year}, month={month:02}")
+            logger.info("Fetching expenses for user_id=%d, year=%d, month=%02d", user_id, year, month)
             # Convert DD-MM-YYYY to YYYY-MM for comparison
             cursor.execute(
                 "SELECT * FROM expenses WHERE user_id=? AND substr(date, 7, 4) || '-' || substr(date, 4, 2) = ?",
@@ -68,7 +72,7 @@ class LocalRepository(IExpenseRepository):
 
     def get_total_by_month(self, user_id: int, year: int, month: int) -> float:
         with self.connect() as cursor:
-            print(f"Calculating total for user_id={user_id}, year={year}, month={month:02}")
+            logger.info("Calculating total for user_id=%d, year=%d, month=%02d", user_id, year, month)
             # Convert DD-MM-YYYY to YYYY-MM for comparison
             cursor.execute(
                 "SELECT SUM(amount) FROM expenses WHERE user_id=? AND substr(date, 7, 4) || '-' || substr(date, 4, 2) = ?",
@@ -78,14 +82,28 @@ class LocalRepository(IExpenseRepository):
             return result[0] if result[0] is not None else 0.0
 
     def add(self, **kwargs: object) -> None:
-        if "name" in kwargs and "amount" in kwargs and "installment" in kwargs and "user_id" in kwargs:
-            with self.connect() as cursor:
+        required = {"name", "amount", "installment", "user_id"}
+        if not required.issubset(kwargs.keys()):
+            raise ValueError(f"Must provide: {required}")
+
+        date = kwargs.get("date")
+        logger.info(
+            "DB INSERT: name=%s, amount=%s, installment=%s, user_id=%s, date=%s",
+            kwargs["name"], kwargs["amount"], kwargs["installment"],
+            kwargs["user_id"], date or "DEFAULT",
+        )
+        with self.connect() as cursor:
+            if date:
+                cursor.execute(
+                    "INSERT INTO expenses (name, amount, installment, user_id, date) VALUES (?, ?, ?, ?, ?)",
+                    (kwargs["name"], kwargs["amount"], kwargs["installment"], kwargs["user_id"], date),
+                )
+            else:
                 cursor.execute(
                     "INSERT INTO expenses (name, amount, installment, user_id) VALUES (?, ?, ?, ?)",
                     (kwargs["name"], kwargs["amount"], kwargs["installment"], kwargs["user_id"]),
                 )
-        else:
-            raise ValueError("Must provide name, amount, installment, and user_id")
+        logger.info("DB INSERT completed")
 
     def update(self, id: int, **kwargs: object) -> None:
         if "name" in kwargs and "user_id" in kwargs:
@@ -108,5 +126,7 @@ class LocalRepository(IExpenseRepository):
             raise ValueError("Must provide either content or title")
 
     def delete(self, id: int) -> None:
+        logger.info("DB DELETE: id=%d", id)
         with self.connect() as cursor:
             cursor.execute("DELETE FROM expenses WHERE id=?", (id,))
+        logger.info("DB DELETE completed")

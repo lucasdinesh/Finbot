@@ -1,65 +1,18 @@
-version: '3.8'
-
 services:
-  # Financial Bot Service
   bot:
     build: .
     container_name: financial-bot
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       - LOCAL_MODE=true
-      - PROMETHEUS_PORT=8000
-    ports:
-      - "8000:8000"
-    networks:
-      - financial-network
-    depends_on:
-      - prometheus
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_MODEL=${LLM_MODEL:-llama-3.3-70b-versatile}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://api.groq.com/openai/v1}
+      - LLM_SYSTEM_PROMPT=${LLM_SYSTEM_PROMPT:-}
+      - LLM_USER_PROMPT=${LLM_USER_PROMPT:-}
     restart: unless-stopped
     volumes:
       - ./finance.db:/app/finance.db
       - ./logs:/app/logs
-
-  # Prometheus Service (Metrics Collection)
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-    networks:
-      - financial-network
-    restart: unless-stopped
-
-  # Grafana Service (Dashboards & Visualization)
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
-    networks:
-      - financial-network
-    depends_on:
-      - prometheus
-    restart: unless-stopped
-
-networks:
-  financial-network:
-    driver: bridge
-
-volumes:
-  prometheus_data:
-  grafana_data:
