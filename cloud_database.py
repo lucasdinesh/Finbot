@@ -32,7 +32,7 @@ class NeonPostgresRepository(IExpenseRepository):
         self._create_table()
 
     def _create_table(self) -> None:
-        """Create expenses table if it doesn't exist."""
+        """Create tables if they don't exist."""
         with self.conn.cursor() as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS expenses (
@@ -42,56 +42,109 @@ class NeonPostgresRepository(IExpenseRepository):
                     amount DECIMAL(10, 2) NOT NULL,
                     installment INTEGER NOT NULL,
                     date DATE NOT NULL,
+                    category_id INTEGER,
+                    payment_method VARCHAR(20),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS categories (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(100) NOT NULL,
+                    user_id INTEGER,
+                    UNIQUE(name, user_id)
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS budgets (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    category_id INTEGER NOT NULL,
+                    month INTEGER NOT NULL,
+                    year INTEGER NOT NULL,
+                    amount DECIMAL(10, 2) NOT NULL,
+                    UNIQUE(user_id, category_id, month, year)
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS savings_goals (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    name VARCHAR(100) NOT NULL,
+                    target_amount DECIMAL(10, 2) NOT NULL,
+                    current_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
+                    deadline VARCHAR(10),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS recurring_expenses (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    name VARCHAR(100) NOT NULL,
+                    amount DECIMAL(10, 2) NOT NULL,
+                    category_id INTEGER,
+                    payment_method VARCHAR(20),
+                    day_of_month INTEGER NOT NULL,
+                    last_generated VARCHAR(10),
+                    active BOOLEAN NOT NULL DEFAULT TRUE
+                )
+            """)
+            from config import DEFAULT_CATEGORIES
+            cur.execute("SELECT COUNT(*) FROM categories WHERE user_id IS NULL")
+            if cur.fetchone()[0] == 0:
+                for name in DEFAULT_CATEGORIES:
+                    cur.execute(
+                        "INSERT INTO categories (name, user_id) VALUES (%s, NULL) ON CONFLICT DO NOTHING",
+                        (name,),
+                    )
             self.conn.commit()
 
     def get(self, id: int) -> Expenses:
         """Get a single expense by ID."""
         with self.conn.cursor() as cur:
-            cur.execute("SELECT id, user_id, name, amount, installment, date FROM expenses WHERE id = %s", (id,))
+            cur.execute("SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE id = %s", (id,))
             row = cur.fetchone()
             if row is None:
                 raise ValueError(f"Expense with id {id} does not exist")
-            return Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5])
+            return Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5], category_id=row[6], payment_method=row[7])
 
     def get_all(self) -> List[Expenses]:
         """Get all expenses."""
         with self.conn.cursor() as cur:
-            cur.execute("SELECT id, user_id, name, amount, installment, date FROM expenses ORDER BY date DESC")
+            cur.execute("SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses ORDER BY date DESC")
             rows = cur.fetchall()
-            return [Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5]) for
+            return [Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5], category_id=row[6], payment_method=row[7]) for
                     row in rows]
 
     def get_by_user(self, user_id: int) -> List[Expenses]:
         """Get all expenses for a specific user."""
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id, user_id, name, amount, installment, date FROM expenses WHERE user_id = %s ORDER BY date DESC",
+                "SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE user_id = %s ORDER BY date DESC",
                 (user_id,))
             rows = cur.fetchall()
-            return [Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5]) for
+            return [Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5], category_id=row[6], payment_method=row[7]) for
                     row in rows]
 
     def get_by_date_interval(self, start_date: str, end_date: str) -> List[Expenses]:
         """Get expenses within a date interval."""
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id, user_id, name, amount, installment, date FROM expenses WHERE date >= %s AND date <= %s ORDER BY date DESC",
+                "SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE date >= %s AND date <= %s ORDER BY date DESC",
                 (start_date, end_date))
             rows = cur.fetchall()
-            return [Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5]) for
+            return [Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5], category_id=row[6], payment_method=row[7]) for
                     row in rows]
 
     def get_by_user_and_month(self, user_id: int, year: int, month: int) -> List[Expenses]:
         """Get all expenses for a specific user in a given month."""
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id, user_id, name, amount, installment, date FROM expenses WHERE user_id = %s AND TO_CHAR(date, 'YYYY-MM') = %s ORDER BY date DESC",
+                "SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE user_id = %s AND TO_CHAR(date, 'YYYY-MM') = %s ORDER BY date DESC",
                 (user_id, f"{year}-{month:02}"))
             rows = cur.fetchall()
-            return [Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5]) for
+            return [Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5], category_id=row[6], payment_method=row[7]) for
                     row in rows]
 
     def get_total_by_month(self, user_id: int, year: int, month: int) -> float:
@@ -139,6 +192,163 @@ class NeonPostgresRepository(IExpenseRepository):
         with self.conn.cursor() as cur:
             cur.execute("DELETE FROM expenses WHERE id = %s", (id,))
             self.conn.commit()
+
+    def search_by_name(self, user_id: int, query: str) -> list[Expenses]:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE user_id = %s AND name ILIKE %s ORDER BY date DESC",
+                (user_id, f"%{query}%"),
+            )
+            return [
+                Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5], category_id=row[6], payment_method=row[7])
+                for row in cur.fetchall()
+            ]
+
+    def get_all_categories(self, user_id: int | None = None) -> list[tuple]:
+        with self.conn.cursor() as cur:
+            if user_id is not None:
+                cur.execute(
+                    "SELECT id, name FROM categories WHERE user_id IS NULL OR user_id = %s ORDER BY name",
+                    (user_id,),
+                )
+            else:
+                cur.execute("SELECT id, name FROM categories WHERE user_id IS NULL ORDER BY name")
+            return cur.fetchall()
+
+    def create_category(self, name: str, user_id: int | None = None) -> int:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO categories (name, user_id) VALUES (%s, %s) ON CONFLICT (name, user_id) DO NOTHING RETURNING id",
+                (name, user_id),
+            )
+            row = cur.fetchone()
+            self.conn.commit()
+            if row:
+                return row[0]
+            cur.execute(
+                "SELECT id FROM categories WHERE name = %s AND user_id IS %s",
+                (name, user_id),
+            )
+            return cur.fetchone()[0]
+
+    def get_category_total_for_month(self, user_id: int, category_id: int, month: int, year: int) -> float:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT SUM(amount) FROM expenses WHERE user_id = %s AND category_id = %s AND TO_CHAR(date, 'YYYY-MM') = %s",
+                (user_id, category_id, f"{year}-{month:02}"),
+            )
+            result = cur.fetchone()
+            return float(result[0]) if result[0] is not None else 0.0
+
+    def set_budget(self, user_id: int, category_id: int, month: int, year: int, amount: float) -> None:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO budgets (user_id, category_id, month, year, amount)
+                   VALUES (%s, %s, %s, %s, %s)
+                   ON CONFLICT (user_id, category_id, month, year) DO UPDATE SET amount = EXCLUDED.amount""",
+                (user_id, category_id, month, year, amount),
+            )
+            self.conn.commit()
+
+    def get_budgets_for_month(self, user_id: int, month: int, year: int) -> list[dict]:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """SELECT b.id, b.category_id, c.name, b.amount
+                   FROM budgets b
+                   JOIN categories c ON c.id = b.category_id
+                   WHERE b.user_id = %s AND b.month = %s AND b.year = %s
+                   ORDER BY c.name""",
+                (user_id, month, year),
+            )
+            return [
+                {"id": r[0], "category_id": r[1], "category_name": r[2], "amount": r[3]}
+                for r in cur.fetchall()
+            ]
+
+    def add_savings_goal(self, user_id: int, name: str, target_amount: float, deadline: str | None) -> int:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO savings_goals (user_id, name, target_amount, deadline) VALUES (%s, %s, %s, %s) RETURNING id",
+                (user_id, name, target_amount, deadline),
+            )
+            self.conn.commit()
+            return cur.fetchone()[0]
+
+    def get_savings_goals(self, user_id: int) -> list[dict]:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, name, target_amount, current_amount, deadline, created_at FROM savings_goals WHERE user_id = %s ORDER BY created_at DESC",
+                (user_id,),
+            )
+            return [
+                {"id": r[0], "name": r[1], "target_amount": r[2], "current_amount": r[3], "deadline": r[4], "created_at": r[5]}
+                for r in cur.fetchall()
+            ]
+
+    def contribute_to_goal(self, goal_id: int, amount: float) -> None:
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE savings_goals SET current_amount = current_amount + %s WHERE id = %s", (amount, goal_id))
+            self.conn.commit()
+
+    def delete_savings_goal(self, goal_id: int) -> None:
+        with self.conn.cursor() as cur:
+            cur.execute("DELETE FROM savings_goals WHERE id = %s", (goal_id,))
+            self.conn.commit()
+
+    def add_recurring_expense(self, user_id: int, name: str, amount: float, category_id: int | None, payment_method: str | None, day_of_month: int) -> int:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO recurring_expenses (user_id, name, amount, category_id, payment_method, day_of_month) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+                (user_id, name, amount, category_id, payment_method, day_of_month),
+            )
+            self.conn.commit()
+            return cur.fetchone()[0]
+
+    def get_recurring_expenses(self, user_id: int) -> list[dict]:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, name, amount, category_id, payment_method, day_of_month, last_generated, active FROM recurring_expenses WHERE user_id = %s ORDER BY name",
+                (user_id,),
+            )
+            return [
+                {"id": r[0], "name": r[1], "amount": r[2], "category_id": r[3], "payment_method": r[4], "day_of_month": r[5], "last_generated": r[6], "active": bool(r[7])}
+                for r in cur.fetchall()
+            ]
+
+    def get_due_recurring_expenses(self) -> list[dict]:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, user_id, name, amount, category_id, payment_method, day_of_month, last_generated FROM recurring_expenses WHERE active = TRUE",
+            )
+            from datetime import datetime
+            now = datetime.now()
+            current_ym = f"{now.month:02d}-{now.year}"
+            results = []
+            for row in cur.fetchall():
+                last_gen = row[7]
+                if last_gen is None or not last_gen.endswith(current_ym):
+                    results.append({
+                        "id": row[0],
+                        "user_id": row[1],
+                        "name": row[2],
+                        "amount": row[3],
+                        "category_id": row[4],
+                        "payment_method": row[5],
+                        "day_of_month": row[6],
+                        "last_generated": row[7],
+                    })
+            return results
+
+    def mark_recurring_generated(self, recurring_id: int, date: str) -> None:
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE recurring_expenses SET last_generated = %s WHERE id = %s", (date, recurring_id))
+            self.conn.commit()
+
+    def delete_recurring_expense(self, recurring_id: int) -> None:
+        with self.conn.cursor() as cur:
+            cur.execute("DELETE FROM recurring_expenses WHERE id = %s", (recurring_id,))
+            self.conn.commit()
+
 
 # Option 4: Neon PostgreSQL
 # from cloud_database import NeonPostgresRepository

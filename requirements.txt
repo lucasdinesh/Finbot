@@ -2,9 +2,8 @@ easyocr>=1.7
 pyTelegramBotAPI>=4.14.0
 psycopg2-binary>=2.9.9
 python-dateutil>=2.8.2
-paddlepaddle>=2.6.2,<3
-paddleocr>=2.7.0,<3
 opencv-python-headless>=4.8.0.74
 protobuf>=3.20.2,<4
 openai>=1.0.0
+python-dotenv>=1.0.0
 

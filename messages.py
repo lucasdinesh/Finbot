@@ -10,8 +10,7 @@ COMMANDS_HEADER = "👋 *Comandos Disponiveis:*\n\n"
 # Add Expense Messages
 ADD_VALUE_PROMPT = "Qual o valor da despesa?"
 ADD_NAME_PROMPT = "Qual o nome da despesa?"
-ADD_DATE_PROMPT = "Qual a data da despesa? (DD-MM-YYYY)"
-ADD_DATE_INVALID = "❌ Data inválida! Use o formato DD-MM-YYYY.\n_(Digite 'cancelar' para sair)_"
+ADD_DATE_INVALID = "❌ Data inválida! Use o formato DD-MM-YYYY ou digite 'hoje'.\n_(Digite 'cancelar' para sair)_"
 ADD_INSTALLMENTS_PROMPT = "Escolha uma parcela:"
 ADD_SUCCESS = (
     "Despesa registrada com sucesso!\n"
@@ -75,6 +74,83 @@ QUICK_REPORT_INSTALLMENTS = "*Parcelas ativas:* {count}\n"
 QUICK_REPORT_TOP_3 = "🎯 *Top 3 Categorias:*\n"
 QUICK_REPORT_ERROR = "Erro ao gerar relatório: {error}"
 
+# Payment Method Messages
+ADD_PAYMENT_PROMPT = "Qual a forma de pagamento?"
+PAYMENT_PIX = "💳 Pix"
+PAYMENT_DINHEIRO = "💰 Dinheiro"
+PAYMENT_CREDITO = "💳 Crédito"
+
+# Category Messages
+ADD_CATEGORY_PROMPT = "Escolha a categoria da despesa:"
+ADD_CATEGORY_CUSTOM_PROMPT = "✏️ Digite o nome da nova categoria:"
+CATEGORY_OTHER = "📦 Outra"
+CATEGORIES_HEADER = "📂 *Categorias Disponíveis:*\n\n"
+NO_CATEGORIES = "Nenhuma categoria encontrada."
+
+# Search Messages
+SEARCH_PROMPT = "🔍 Digite o nome da despesa que deseja buscar:"
+SEARCH_NO_RESULTS = "Nenhuma despesa encontrada com o nome *\"{query}\"*."
+SEARCH_RESULT_FORMAT = "• *{name}*\n  💵 R${amount:,.2f} | 📅 {date} | 📦 {installment}x | 💳 {payment_method}"
+
+# Edit Expense Messages
+EDIT_PROMPT = "✏️ Digite o ID da despesa que deseja editar:"
+EDIT_NOT_FOUND = "❌ Despesa com ID {id} não encontrada!"
+EDIT_FIELD_PROMPT = "Escolha o campo que deseja editar:"
+EDIT_FIELD_VALUE = "💵 Valor"
+EDIT_FIELD_NAME = "🏷️ Nome"
+EDIT_FIELD_DATE = "📅 Data"
+EDIT_FIELD_INSTALLMENTS = "📦 Parcelas"
+EDIT_FIELD_CATEGORY = "📂 Categoria"
+EDIT_FIELD_PAYMENT = "💳 Forma de Pagamento"
+EDIT_NEW_VALUE = "✏️ Digite o novo valor para *{field}*:"
+EDIT_SUCCESS = "✅ Despesa editada com sucesso!"
+EDIT_CANCELLED = "❌ Edição cancelada."
+
+# Budget Messages
+BUDGET_SET_PROMPT = "💰 Digite o valor do orçamento mensal para *{category}*:"
+BUDGET_SET_SUCCESS = "✅ Orçamento de R$ {amount:.2f} definido para *{category}*!"
+BUDGET_HEADER = "📊 *Orçamentos do Mês:*\n\n"
+BUDGET_FORMAT = "• *{category}:* R$ {spent:.2f} / R$ {budget:.2f} ({percent:.0f}%)"
+BUDGET_OVER = "⚠️ *Atenção:* Você já gastou R$ {total:.2f} em *{category}* — o orçamento era R$ {budget:.2f}!"
+NO_BUDGETS = "Nenhum orçamento definido para este mês."
+BUDGET_SELECT_CATEGORY = "Escolha a categoria para definir o orçamento:"
+
+# Savings Goal Messages
+GOAL_NAME_PROMPT = "🎯 Qual o nome da sua meta?"
+GOAL_TARGET_PROMPT = "💰 Qual o valor alvo da meta?"
+GOAL_DEADLINE_PROMPT = "📅 Qual o prazo? (DD-MM-YYYY) ou digite '0' se não tiver prazo:"
+GOAL_ADD_SUCCESS = "✅ Meta *{name}* criada com sucesso!"
+GOAL_HEADER = "🎯 *Suas Metas:*\n\n"
+GOAL_FORMAT = "{name}\nR$ {current:,.2f} / R$ {target:,.2f} ({percent:.0f}%)\n{bar}\nPrazo: {deadline}\n"
+GOAL_NO_DEADLINE = "Sem prazo"
+NO_GOALS = "Nenhuma meta cadastrada."
+GOAL_CONTRIBUTE_PROMPT = "💰 Digite o valor que deseja adicionar à meta *{name}*:"
+GOAL_CONTRIBUTE_SUCCESS = "✅ R$ {amount:.2f} adicionado à meta *{name}*!"
+GOAL_SELECT_PROMPT = "Escolha a meta:"
+
+# Recurring Expense Messages
+RECURRING_NAME_PROMPT = "📋 Qual o nome da despesa recorrente?"
+RECURRING_VALUE_PROMPT = "💰 Qual o valor?"
+RECURRING_DAY_PROMPT = "📅 Qual o dia do vencimento? (1-31)"
+RECURRING_ADD_SUCCESS = "✅ Despesa recorrente *{name}* cadastrada! Será gerada todo dia {day}."
+RECURRING_HEADER = "🔄 *Despesas Recorrentes:*\n\n"
+RECURRING_FORMAT = "• *{name}* — R$ {amount:.2f} — Dia {day} — {payment}"
+NO_RECURRING = "Nenhuma despesa recorrente cadastrada."
+RECURRING_DELETED = "✅ Despesa recorrente removida."
+RECURRING_SELECT_DELETE = "Escolha a despesa recorrente para remover:"
+
+# Insight Messages
+INSIGHT_HEADER = "📈 *Insights - {month} vs {prev_month}*\n\n"
+INSIGHT_TOTAL = "📊 Total: R$ {total:,.2f} ({change:+.1f}%)\n"
+INSIGHT_COUNT = "📝 Despesas: {count} ({count_change:+d})\n\n"
+INSIGHT_CATEGORY_LINE = "{category}: R$ {amount:,.2f} ({change:+.1f}% {arrow})\n"
+INSIGHT_NO_DATA = "Sem dados suficientes para comparar."
+INSIGHT_ARROW_UP = "↑"
+INSIGHT_ARROW_DOWN = "↓"
+INSIGHT_ARROW_SAME = "→"
+INSIGHT_NEW = "NOVO"
+INSIGHT_NONE = "-"
+
 # Delete Expense Messages
 DELETE_PROMPT = "Qual é o ID da despesa que deseja deletar? (ou 'cancelar' para sair)"
 DELETE_ID_INVALID = "❌ ID inválido! Por favor, insira um número inteiro positivo.\n_(Digite 'cancelar' para sair)_"
@@ -108,7 +184,7 @@ SCAN_CONFIRM_LOW_CONFIDENCE = (
 )
 SCAN_EDIT_VALUE = "✏️ Valor atual: *R$ {current:.2f}*\nDigite o valor correto:"
 SCAN_EDIT_NAME = "✏️ Estabelecimento atual: *{current}*\nDigite o nome correto:"
-SCAN_EDIT_DATE = "✏️ Data atual: *{current}*\nDigite a data correta (DD-MM-YYYY):"
+SCAN_EDIT_DATE = "✏️ Data atual: *{current}*\nDigite a data correta (DD-MM-YYYY) ou 'hoje':"
 SCAN_EDIT_INSTALLMENTS = "✏️ Parcelas atuais: *{current}*\nDigite o número correto (1-1000):"
 SCAN_NO_AMOUNT = "❌ Não foi possível identificar o valor no comprovante.\n\nDigite o valor manualmente:"
 

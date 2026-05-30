@@ -2,17 +2,7 @@ services:
   bot:
     build: .
     container_name: financial-bot
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    environment:
-      - LOCAL_MODE=true
-      - LLM_API_KEY=${LLM_API_KEY}
-      - LLM_MODEL=${LLM_MODEL:-llama-3.3-70b-versatile}
-      - LLM_BASE_URL=${LLM_BASE_URL:-https://api.groq.com/openai/v1}
-      - LLM_SYSTEM_PROMPT=${LLM_SYSTEM_PROMPT:-}
-      - LLM_USER_PROMPT=${LLM_USER_PROMPT:-}
+    env_file: .env
     restart: unless-stopped
     volumes:
       - ./finance.db:/app/finance.db
-      - ./logs:/app/logs

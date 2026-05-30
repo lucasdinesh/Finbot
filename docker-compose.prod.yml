@@ -1,0 +1,28 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: financial-db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: financialbot
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?}
+      POSTGRES_DB: financial_bot
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U financialbot -d financial_bot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bot:
+    build: .
+    container_name: financial-bot
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    restart: unless-stopped
+
+volumes:
+  pgdata:

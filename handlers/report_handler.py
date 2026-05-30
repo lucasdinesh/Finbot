@@ -46,14 +46,8 @@ class ReportHandler(BaseHandler):
     def handle_get_all(self, message) -> None:
         """Handle /get command - list all expenses."""
         try:
-            # Get all expenses from repository (delegate to service)
-            # For now, we'll use the repository directly via bot context
-            from main import ExpenseRepositorySingleton
-            expense_repo = ExpenseRepositorySingleton.get_instance()
-            expenses = expense_repo.get_all()
-            
-            for expense in expenses:
-                msg = GET_ALL_EXPENSES_FORMAT.format(name=expense.name, amount=expense.amount)
-                self.send_info(message.chat.id, msg)
+            expenses = self.report_service.report_generator.repository.get_by_user(message.from_user.id)
+            msg = self.report_service.report_generator.format_expense_list(expenses)
+            self.send_info(message.chat.id, msg)
         except Exception as e:
             self.send_error(message.chat.id, f"❌ Error retrieving expenses: {str(e)}")

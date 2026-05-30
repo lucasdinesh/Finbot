@@ -1,43 +1,10 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-.venv
-*.egg-info/
-dist/
-build/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
 .env
-.env.local
-
-# Project
-finance.db
-*.jpg
-*.jpeg
-*.png
-*.db
-logs/
-
-# Git
-.git/
+.git
 .gitignore
-
-# Docker
-docker-compose.yml
-Dockerfile
-.dockerignore
-
-# Docs
-Doc/
+__pycache__/
+*.pyc
+finance.db
+.idea/
+*.jpg
+*.png
+logs/

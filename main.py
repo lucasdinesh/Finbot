@@ -19,11 +19,11 @@ logging.info("Application started — logging ready")
 
 import telebot
 from telebot import types
-from config import TOKEN, local_mode, connection_string_neon_demo, LLM_ENABLED, LLM_API_KEY, LLM_MODEL, LLM_BASE_URL
+from config import TOKEN, local_mode, DATABASE_URL, LLM_ENABLED, LLM_API_KEY, LLM_MODEL, LLM_BASE_URL
 from database import IExpenseRepository
 from local_repository import LocalRepository
 from cloud_database import NeonPostgresRepository
-from messages import WELCOME_MESSAGE, COMMANDS_HEADER
+from messages import WELCOME_MESSAGE, COMMANDS_HEADER, SEARCH_PROMPT, EDIT_PROMPT
 
 # Import layers
 from state.conversation_manager import ConversationManager
@@ -35,6 +35,11 @@ from handlers.expense_handler import ExpenseHandler
 from handlers.report_handler import ReportHandler
 from handlers.date_handler import DateHandler
 from handlers.receipt_handler import ReceiptHandler
+from handlers.category_handler import CategoryHandler
+from handlers.budget_handler import BudgetHandler
+from handlers.insight_handler import InsightHandler
+from handlers.recurring_handler import RecurringHandler
+from handlers.goal_handler import GoalHandler
 from callbacks.callback_router import CallbackRouter
 
 
@@ -48,7 +53,7 @@ class ExpenseRepositorySingleton:
             if local_mode:
                 ExpenseRepositorySingleton._instance = LocalRepository()
             else:
-                ExpenseRepositorySingleton._instance = NeonPostgresRepository(connection_string_neon_demo)
+                ExpenseRepositorySingleton._instance = NeonPostgresRepository(DATABASE_URL)
         return ExpenseRepositorySingleton._instance
 
 
@@ -76,6 +81,11 @@ expense_handler = ExpenseHandler(bot, state_manager, expense_service)
 report_handler = ReportHandler(bot, state_manager, report_service)
 date_handler = DateHandler(bot, state_manager)
 receipt_handler = ReceiptHandler(bot, state_manager, expense_service, ocr_service)
+category_handler = CategoryHandler(bot, state_manager, expense_service)
+budget_handler = BudgetHandler(bot, state_manager, expense_service)
+insight_handler = InsightHandler(bot, state_manager, expense_service)
+recurring_handler = RecurringHandler(bot, state_manager, expense_service)
+goal_handler = GoalHandler(bot, state_manager, expense_service)
 
 # Initialize callback router
 callback_router = CallbackRouter()
@@ -98,6 +108,18 @@ def setup_bot_commands():
         types.BotCommand("monthlysummary", "Resumo detalhado do mês atual"),
         types.BotCommand("quickreport", "Relatório rápido comparando mês atual com anterior"),
         types.BotCommand("delete", "Deleta uma despesa existente"),
+        types.BotCommand("search", "Busca despesas pelo nome"),
+        types.BotCommand("edit", "Edita uma despesa existente"),
+        types.BotCommand("categories", "Lista todas as categorias"),
+        types.BotCommand("setbudget", "Define orçamento mensal para uma categoria"),
+        types.BotCommand("budgets", "Mostra orçamentos do mês"),
+        types.BotCommand("insights", "Comparativo de gastos mês a mês"),
+        types.BotCommand("addrecurring", "Adiciona despesa recorrente"),
+        types.BotCommand("recurring", "Lista despesas recorrentes"),
+        types.BotCommand("removerecurring", "Remove despesa recorrente"),
+        types.BotCommand("addgoal", "Cria uma nova meta de economia"),
+        types.BotCommand("goals", "Mostra metas de economia"),
+        types.BotCommand("contributetogoal", "Adiciona valor a uma meta"),
         types.BotCommand("foto", "Escanear comprovante com a câmera"),
     ]
     import time
@@ -186,6 +208,78 @@ def scan_receipt_cmd(message):
     receipt_handler.handle_scan_command(message)
 
 
+@bot.message_handler(commands=['search'])
+def search_expense_cmd(message):
+    """Handle /search command."""
+    expense_handler.handle_search_command(message)
+
+
+@bot.message_handler(commands=['edit'])
+def edit_expense_cmd(message):
+    """Handle /edit command."""
+    expense_handler.handle_edit_command(message)
+
+
+@bot.message_handler(commands=['categories'])
+def categories_cmd(message):
+    """Handle /categories command."""
+    category_handler.handle_list_categories(message)
+
+
+@bot.message_handler(commands=['setbudget'])
+def set_budget_cmd(message):
+    """Handle /setbudget command."""
+    budget_handler.handle_set_budget(message)
+
+
+@bot.message_handler(commands=['budgets'])
+def budgets_cmd(message):
+    """Handle /budgets command."""
+    budget_handler.handle_list_budgets(message)
+
+
+@bot.message_handler(commands=['insights'])
+def insights_cmd(message):
+    """Handle /insights command."""
+    insight_handler.handle_insights(message)
+
+
+@bot.message_handler(commands=['addrecurring'])
+def add_recurring_cmd(message):
+    """Handle /addrecurring command."""
+    recurring_handler.handle_add_recurring(message)
+
+
+@bot.message_handler(commands=['recurring'])
+def recurring_cmd(message):
+    """Handle /recurring command."""
+    recurring_handler.handle_list_recurring(message)
+
+
+@bot.message_handler(commands=['removerecurring'])
+def remove_recurring_cmd(message):
+    """Handle /removerecurring command."""
+    recurring_handler.handle_delete_recurring(message)
+
+
+@bot.message_handler(commands=['addgoal'])
+def add_goal_cmd(message):
+    """Handle /addgoal command."""
+    goal_handler.handle_add_goal(message)
+
+
+@bot.message_handler(commands=['goals'])
+def goals_cmd(message):
+    """Handle /goals command."""
+    goal_handler.handle_list_goals(message)
+
+
+@bot.message_handler(commands=['contributetogoal'])
+def contribute_goal_cmd(message):
+    """Handle /contributetogoal command."""
+    goal_handler.handle_contribute_start(message)
+
+
 @bot.message_handler(content_types=['photo'])
 def photo_message(message):
     """Handle any incoming photo message as a receipt scan attempt."""
@@ -219,6 +313,100 @@ def handle_receipt_callback(call):
         receipt_handler.handle_cancel_action(call)
 
 
+@bot.callback_query_handler(func=lambda call: call.data.startswith('RCPAYMENT_'))
+def handle_receipt_payment_callback(call):
+    """Handle payment method selection in receipt flow."""
+    receipt_handler.handle_receipt_payment_callback(call)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('RCCAT_'))
+def handle_receipt_category_callback(call):
+    """Handle category selection in receipt flow."""
+    receipt_handler.handle_receipt_category_callback(call)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('PAYMENT'))
+def handle_payment_callback(call):
+    """Handle payment method selection."""
+    expense_handler.handle_payment_callback(call)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('CATEGORY'))
+def handle_category_callback(call):
+    """Handle category selection."""
+    expense_handler.handle_category_callback(call)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('EDIT_'))
+def handle_edit_field_callback(call):
+    """Handle edit field selection."""
+    expense_handler.handle_edit_field_callback(call)
+
+
+@bot.callback_query_handler(func=lambda call: call.data == 'CATEGORY_CREATE')
+def handle_category_create_callback(call):
+    """Handle create category from /categories."""
+    category_handler.handle_create_category_start(call)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('BUDGET_CAT_'))
+def handle_budget_category_callback(call):
+    """Handle budget category selection."""
+    budget_handler.handle_budget_category_callback(call)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('RPAYMENT_'))
+def handle_recurring_payment_callback(call):
+    """Handle recurring expense payment method."""
+    recurring_handler.handle_payment_callback(call)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('RCAT_'))
+def handle_recurring_category_callback(call):
+    """Handle recurring expense category selection."""
+    recurring_handler.handle_category_callback(call)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('RDEL_'))
+def handle_recurring_delete_callback(call):
+    """Handle recurring expense deletion."""
+    recurring_handler.handle_delete_callback(call)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('GOAL_CONT_'))
+def handle_goal_contribute_callback(call):
+    """Handle goal contribution selection."""
+    goal_handler.handle_contribute_select(call)
+
+
+def generate_recurring_expenses():
+    """Auto-generate expenses from recurring subscriptions."""
+    try:
+        due = expense_service.get_due_recurring_expenses()
+        from datetime import datetime
+        now = datetime.now()
+        today = now.strftime("%d-%m-%Y")
+        for r in due:
+            day = r["day_of_month"]
+            day = min(day, 28)
+            expense_date = f"{day:02d}-{now.month:02d}-{now.year}"
+            expense_service.create_expense(
+                user_id=r["user_id"],
+                name=r["name"],
+                amount=r["amount"],
+                installments=1,
+                date=expense_date,
+                category_id=r["category_id"],
+                payment_method=r["payment_method"],
+            )
+            expense_service.mark_recurring_generated(r["id"], today)
+            logger.info("Auto-generated recurring expense: %s for user %d", r["name"], r["user_id"])
+        if due:
+            logger.info("Generated %d recurring expenses", len(due))
+    except Exception as e:
+        logger.error("Failed to generate recurring expenses: %s", e)
+
+
 if __name__ == "__main__":
     # Pre-download OCR models at startup (non-blocking — runs in background)
     import threading
@@ -231,6 +419,9 @@ if __name__ == "__main__":
     threading.Thread(target=_warm_ocr, daemon=True).start()
 
     llm_service.warm_up()
+
+    # Generate due recurring expenses
+    generate_recurring_expenses()
 
     # Logging test
     print("[PRINT] Bot starting up — stdout works", flush=True)
