@@ -19,7 +19,7 @@ from messages import (
     ADD_CATEGORY_PROMPT, ADD_CATEGORY_CUSTOM_PROMPT, CATEGORY_OTHER,
 )
 from utils.validators import ExpenseValidator
-from telebot import types, util
+from telebot import types, formatting
 
 
 class ReceiptHandler(BaseHandler):
@@ -112,11 +112,16 @@ class ReceiptHandler(BaseHandler):
             return
 
         try:
-            logger.info("Starting OCR + parse (120s timeout)")
+            logger.info("Starting OCR + parse")
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                parsed = pool.submit(
-                    self._ocr_and_parse, image_bytes
-                ).result(timeout=120)
+                future = pool.submit(self._ocr_and_parse, image_bytes)
+                try:
+                    parsed = future.result(timeout=60)
+                except concurrent.futures.TimeoutError:
+                    if future.done():
+                        parsed = future.result()
+                    else:
+                        raise
             logger.info("OCR + parse completed")
         except concurrent.futures.TimeoutError:
             logger.error("OCR + parse timed out after 120s")
@@ -150,17 +155,10 @@ class ReceiptHandler(BaseHandler):
             return
 
         text = SCAN_CONFIRM.format(
-            store_name=util.escape_markdown(parsed["store_name"] or "Não identificado"),
+            store_name=formatting.escape_markdown(parsed["store_name"] or "Não identificado"),
             amount=parsed["amount"],
-            date=util.escape_markdown(parsed["date"] or "Não identificada"),
+            date=parsed["date"] or "Não identificada",
         )
-        if parsed["confidence"] < 0.7:
-            text += (
-                "\n\n⚠️ *Confiança baixa.*\n"
-                "📄 Texto reconhecido:\n```\n"
-                + parsed["raw_text"]
-                + "\n```"
-            )
 
         keyboard = types.InlineKeyboardMarkup(row_width=3)
         keyboard.add(
@@ -200,26 +198,88 @@ class ReceiptHandler(BaseHandler):
         self._ask_receipt_payment(chat_id, user_id, call)
 
     def handle_edit(self, call) -> None:
-        """User wants to edit the parsed data -> start value edit."""
+        """User wants to edit the parsed data -> show field selection."""
         user_id = call.from_user.id
         chat_id = call.message.chat.id
         logger.info("User %d started editing receipt data", user_id)
-        receipt_state = self.state.get_receipt_state(user_id)
-        parsed = receipt_state.get("parsed_data", {}) if receipt_state else {}
-        current_amount = parsed.get("amount")
 
-        self.state.update_receipt_state(user_id, "step", "editing_value")
+        receipt_state = self.state.get_receipt_state(user_id)
+        if not receipt_state:
+            self.bot.answer_callback_query(call.id, "Nenhum dado pendente.")
+            return
+
+        self.state.update_receipt_state(user_id, "step", "field_selection")
         self.bot.edit_message_reply_markup(chat_id, call.message.message_id,
                                            reply_markup=None)
-        if current_amount:
+        self._show_edit_field_selection(chat_id, user_id)
+        self.bot.answer_callback_query(call.id)
+
+    def handle_edit_field(self, call) -> None:
+        """Handle field selection callback from edit flow."""
+        user_id = call.from_user.id
+        chat_id = call.message.chat.id
+        logger.info("User %d selected field: %s", user_id, call.data)
+
+        receipt_state = self.state.get_receipt_state(user_id)
+        if not receipt_state:
+            self.bot.answer_callback_query(call.id, "Nenhum dado pendente.")
+            return
+
+        parsed = receipt_state.get("parsed_data", {})
+
+        if call.data == "RECEIPT_EDIT_FIELD_VALUE":
+            self.bot.edit_message_reply_markup(chat_id, call.message.message_id,
+                                               reply_markup=None)
+            self.state.update_receipt_state(user_id, "step", "editing_value")
+            current_amount = parsed.get("amount")
+            if current_amount:
+                msg = self.bot.send_message(
+                    chat_id, SCAN_EDIT_VALUE.format(current=current_amount),
+                    parse_mode="Markdown",
+                )
+            else:
+                msg = self.bot.send_message(chat_id, "✏️ Digite o valor da despesa:")
+            self.bot.register_next_step_handler(msg, self._handle_edit_value)
+
+        elif call.data == "RECEIPT_EDIT_FIELD_NAME":
+            self.bot.edit_message_reply_markup(chat_id, call.message.message_id,
+                                               reply_markup=None)
+            self.state.update_receipt_state(user_id, "step", "editing_name")
+            current_name = formatting.escape_markdown(parsed.get("store_name") or "Despesa")
             msg = self.bot.send_message(
-                chat_id, SCAN_EDIT_VALUE.format(current=current_amount),
+                chat_id, SCAN_EDIT_NAME.format(current=current_name),
                 parse_mode="Markdown",
             )
-        else:
-            msg = self.bot.send_message(chat_id, "✏️ Digite o valor da despesa:")
-        self.bot.register_next_step_handler(msg, self._handle_edit_value)
+            self.bot.register_next_step_handler(msg, self._handle_edit_name)
+
+        elif call.data == "RECEIPT_EDIT_FIELD_DATE":
+            self.bot.edit_message_reply_markup(chat_id, call.message.message_id,
+                                               reply_markup=None)
+            self.state.update_receipt_state(user_id, "step", "editing_date")
+            current_date = parsed.get("date") or "não identificada"
+            msg = self.bot.send_message(
+                chat_id, SCAN_EDIT_DATE.format(current=current_date),
+                parse_mode="Markdown",
+            )
+            self.bot.register_next_step_handler(msg, self._handle_edit_date)
+
+        elif call.data == "RECEIPT_EDIT_DONE":
+            self.state.update_receipt_state(user_id, "step", "awaiting_payment")
+            self._ask_receipt_payment(chat_id, user_id, call)
+
         self.bot.answer_callback_query(call.id)
+
+    def _show_edit_field_selection(self, chat_id: int, user_id: int) -> None:
+        """Show inline buttons for which field to edit."""
+        keyboard = types.InlineKeyboardMarkup(row_width=2)
+        keyboard.add(
+            types.InlineKeyboardButton("Valor 💵", callback_data="RECEIPT_EDIT_FIELD_VALUE"),
+            types.InlineKeyboardButton("Estabelecimento 🏪", callback_data="RECEIPT_EDIT_FIELD_NAME"),
+            types.InlineKeyboardButton("Data 📅", callback_data="RECEIPT_EDIT_FIELD_DATE"),
+            types.InlineKeyboardButton("Pronto ✅", callback_data="RECEIPT_EDIT_DONE"),
+        )
+        self.bot.send_message(chat_id, "✏️ Escolha o campo que deseja corrigir:",
+                              reply_markup=keyboard)
 
     def handle_cancel_action(self, call) -> None:
         """User cancelled the receipt operation."""
@@ -265,7 +325,11 @@ class ReceiptHandler(BaseHandler):
         self.bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=None)
 
         if payment_method == "credito":
-            self.state.update_receipt_state(user_id, "installments_asked", True)
+            self.state.update_receipt_state(user_id, "step", "awaiting_installments")
+            msg = self.bot.send_message(chat_id, "Quantas parcelas? (1-1000):")
+            self.bot.register_next_step_handler(msg, self._handle_receipt_installments)
+            self.bot.answer_callback_query(call.id)
+            return
         else:
             self.state.update_receipt_state(user_id, "parsed_data", {
                 **self.state.get_receipt_state(user_id).get("parsed_data", {}),
@@ -274,6 +338,29 @@ class ReceiptHandler(BaseHandler):
 
         self._ask_receipt_category(chat_id, user_id)
         self.bot.answer_callback_query(call.id)
+
+    def _handle_receipt_installments(self, message) -> None:
+        """Handle installment input when credit is selected in receipt flow."""
+        user_id = message.from_user.id
+        chat_id = message.chat.id
+
+        if self.is_cancel_command(message.text):
+            self.state.clear_receipt_state(user_id)
+            self.handle_cancel(chat_id)
+            return
+
+        is_valid, installments, error_key = self.validator.validate_installments(message.text)
+        if not is_valid:
+            self.send_error(chat_id, self._ERROR_MAP.get(error_key, "Número de parcelas inválido"))
+            msg = self.bot.send_message(chat_id, "Quantas parcelas? (1-1000):")
+            self.bot.register_next_step_handler(msg, self._handle_receipt_installments)
+            return
+
+        self.state.update_receipt_state(user_id, "parsed_data", {
+            **self.state.get_receipt_state(user_id).get("parsed_data", {}),
+            "installments": installments,
+        })
+        self._ask_receipt_category(chat_id, user_id)
 
     def _ask_receipt_category(self, chat_id: int, user_id: int) -> None:
         """Show category inline buttons."""
@@ -386,35 +473,27 @@ class ReceiptHandler(BaseHandler):
             self.handle_cancel(chat_id)
             return
 
-        if self._is_accept(message.text):
-            value = parsed.get("amount")
-            if value is None:
-                self.send_error(chat_id, "Nenhum valor detectado. Digite o valor manualmente.")
+        is_valid, value, error_key = self.validator.validate_value(message.text)
+        if not is_valid:
+            logger.warning("Invalid value input: %s (error=%s)", message.text, error_key)
+            self.send_error(chat_id, self._ERROR_MAP.get(error_key, "Valor inválido"))
+            current_amount = parsed.get("amount")
+            if current_amount:
+                msg = self.bot.send_message(
+                    chat_id, SCAN_EDIT_VALUE.format(current=current_amount),
+                    parse_mode="Markdown",
+                )
+            else:
                 msg = self.bot.send_message(chat_id, "✏️ Digite o valor da despesa:")
-                self.bot.register_next_step_handler(msg, self._handle_edit_value)
-                return
-            logger.info("Value kept: %.2f", value)
-        else:
-            is_valid, value, error_key = self.validator.validate_value(message.text)
-            if not is_valid:
-                logger.warning("Invalid value input: %s (error=%s)", message.text, error_key)
-                self.send_error(chat_id, self._ERROR_MAP.get(error_key, "Valor inválido"))
-                msg = self.bot.send_message(chat_id, "✏️ Digite o valor ou 'ok' para manter:")
-                self.bot.register_next_step_handler(msg, self._handle_edit_value)
-                return
-            logger.info("Value accepted: %.2f", value)
+            self.bot.register_next_step_handler(msg, self._handle_edit_value)
+            return
+        logger.info("Value accepted: %.2f", value)
 
         self.state.update_receipt_state(user_id, "parsed_data", {
             **parsed,
             "amount": value,
         })
-        self.state.update_receipt_state(user_id, "step", "editing_name")
-        current_name = util.escape_markdown(parsed.get("store_name") or "Despesa")
-        msg = self.bot.send_message(
-            chat_id, SCAN_EDIT_NAME.format(current=current_name),
-            parse_mode="Markdown",
-        )
-        self.bot.register_next_step_handler(msg, self._handle_edit_name)
+        self._show_edit_field_selection(chat_id, user_id)
 
     def _handle_edit_name(self, message) -> None:
         user_id = message.from_user.id
@@ -428,34 +507,24 @@ class ReceiptHandler(BaseHandler):
             self.handle_cancel(chat_id)
             return
 
-        if self._is_accept(message.text):
-            name = parsed.get("store_name", "Despesa")
-            logger.info("Name kept: %s", name)
-        else:
-            name = message.text.strip()
-            if not name:
-                logger.warning("Empty name submitted")
-                self.send_error(chat_id, NAME_EMPTY)
-                current_name = util.escape_markdown(parsed.get("store_name") or "Despesa")
-                msg = self.bot.send_message(
-                    chat_id, SCAN_EDIT_NAME.format(current=current_name),
-                    parse_mode="Markdown",
-                )
-                self.bot.register_next_step_handler(msg, self._handle_edit_name)
-                return
-            logger.info("Name accepted: %s", name)
+        name = message.text.strip()
+        if not name:
+            logger.warning("Empty name submitted")
+            self.send_error(chat_id, NAME_EMPTY)
+            current_name = formatting.escape_markdown(parsed.get("store_name") or "Despesa")
+            msg = self.bot.send_message(
+                chat_id, SCAN_EDIT_NAME.format(current=current_name),
+                parse_mode="Markdown",
+            )
+            self.bot.register_next_step_handler(msg, self._handle_edit_name)
+            return
+        logger.info("Name accepted: %s", name)
 
         self.state.update_receipt_state(user_id, "parsed_data", {
             **parsed,
             "store_name": name,
         })
-        self.state.update_receipt_state(user_id, "step", "editing_date")
-        current_date = parsed.get("date") or "não identificada"
-        msg = self.bot.send_message(
-            chat_id, SCAN_EDIT_DATE.format(current=current_date),
-            parse_mode="Markdown",
-        )
-        self.bot.register_next_step_handler(msg, self._handle_edit_date)
+        self._show_edit_field_selection(chat_id, user_id)
 
     def _handle_edit_date(self, message) -> None:
         user_id = message.from_user.id
@@ -470,24 +539,12 @@ class ReceiptHandler(BaseHandler):
             return
 
         from datetime import datetime
+        import re
         date_str = message.text.strip().lower()
 
         if date_str == "hoje":
             date_str = datetime.now().strftime("%d-%m-%Y")
-        elif self._is_accept(message.text):
-            date_str = parsed.get("date")
-            if not date_str:
-                self.send_error(chat_id, "Nenhuma data detectada. Digite a data manualmente.")
-                current_date = "não identificada"
-                msg = self.bot.send_message(
-                    chat_id, SCAN_EDIT_DATE.format(current=current_date),
-                    parse_mode="Markdown",
-                )
-                self.bot.register_next_step_handler(msg, self._handle_edit_date)
-                return
-            logger.info("Date kept: %s", date_str)
         else:
-            import re
             date_pattern = re.compile(r'^\d{2}-\d{2}-\d{4}$')
             if not date_pattern.match(date_str):
                 logger.warning("Invalid date format: %s", message.text)
@@ -505,13 +562,7 @@ class ReceiptHandler(BaseHandler):
             **parsed,
             "date": date_str,
         })
-        self.state.update_receipt_state(user_id, "step", "editing_installments")
-        current_inst = parsed.get("installments", 1)
-        msg = self.bot.send_message(
-            chat_id, SCAN_EDIT_INSTALLMENTS.format(current=current_inst),
-            parse_mode="Markdown",
-        )
-        self.bot.register_next_step_handler(msg, self._handle_edit_installments)
+        self._show_edit_field_selection(chat_id, user_id)
 
     def _handle_edit_installments(self, message) -> None:
         user_id = message.from_user.id
@@ -594,11 +645,16 @@ class ReceiptHandler(BaseHandler):
             except Exception:
                 pass
 
+        if payment_method == "credito" and installments > 1:
+            inst_line = f"Parcelas: {installments}"
+        else:
+            inst_line = ""
+
         success_msg = ADD_SUCCESS.format(
             name=name,
             value=float(amount),
             date=date or "hoje",
-            installments=installments,
+            installments_line=inst_line,
         )
         self.bot.send_message(chat_id, success_msg)
 

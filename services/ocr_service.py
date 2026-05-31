@@ -74,6 +74,13 @@ class OcrService:
             logger.error("Failed to decode image bytes")
             return []
 
+        h, w = img.shape[:2]
+        if w > 1280:
+            scale = 1280.0 / w
+            new_w, new_h = 1280, int(h * scale)
+            img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+            logger.info("Downscaled image from %dx%d to %dx%d", w, h, new_w, new_h)
+
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         brightness = gray.mean()
         contrast = gray.std()
@@ -110,6 +117,18 @@ class OcrService:
             )
             return binary
 
+        def make_adaptive_c25(im):
+            h, w = im.shape[:2]
+            gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+            binary = cv2.adaptiveThreshold(
+                gray, 255,
+                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY,
+                blockSize=31,
+                C=25,
+            )
+            return binary
+
         def make_clahe(im):
             h, w = im.shape[:2]
             gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
@@ -119,11 +138,12 @@ class OcrService:
         variant_map = {
             "grayscale": ("grayscale", make_grayscale),
             "adaptive C=10": ("adaptive C=10", make_adaptive),
+            "adaptive C=25": ("adaptive C=25", make_adaptive_c25),
             "CLAHE": ("CLAHE", make_clahe),
         }
 
-        # Order: start variant first, then the remaining two
-        ordered = ["grayscale", "adaptive C=10", "CLAHE"]
+        # Order: start variant first, then the remaining
+        ordered = ["grayscale", "adaptive C=10", "adaptive C=25", "CLAHE"]
         ordered.remove(start_variant)
         ordered.insert(0, start_variant)
 
@@ -172,21 +192,6 @@ class OcrService:
                 avg_conf = 0.0
 
             score = avg_conf
-
-            if self._llm_service is not None and extracted:
-                texts = [t for t, _ in extracted]
-                raw_text = "\n".join(texts)
-                try:
-                    fields = self._llm_service.extract_receipt_fields(raw_text)
-                    logger.info("Variant %s LLM | amount=%s | date=%s | store_name=%s",
-                                name,
-                                fields.get("amount") if fields else None,
-                                fields.get("date") if fields else None,
-                                fields.get("store_name") if fields else None)
-                except Exception as exc:
-                    logger.warning("Variant %s LLM extraction failed: %s", name, exc)
-            else:
-                logger.info("Variant %s LLM | skipped (no LLM or no OCR lines)", name)
 
             if score > best_score:
                 best_score = score

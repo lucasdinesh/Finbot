@@ -92,9 +92,6 @@ class GoalHandler(BaseHandler):
             target = g["target_amount"]
             current = g["current_amount"]
             percent = (current / target) * 100 if target > 0 else 0
-            bar_len = 20
-            filled = int(bar_len * percent / 100)
-            bar = "█" * filled + "░" * (bar_len - filled)
             deadline = g["deadline"] or GOAL_NO_DEADLINE
 
             text += GOAL_FORMAT.format(
@@ -102,7 +99,6 @@ class GoalHandler(BaseHandler):
                 current=current,
                 target=target,
                 percent=percent,
-                bar=bar,
                 deadline=deadline,
             )
         self.send_info(message.chat.id, text)

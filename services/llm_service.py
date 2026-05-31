@@ -3,6 +3,7 @@
 import json
 import logging
 from typing import Optional
+from datetime import datetime
 from openai import OpenAI
 
 from config import LLM_SYSTEM_PROMPT, LLM_USER_PROMPT
@@ -67,6 +68,7 @@ class LlamaService:
 
         result = self._parse_output(text)
         if result:
+            result = self._fix_date_year(result)
             logger.info("LLM extracted fields: %s", result)
         else:
             logger.warning("LLM output parsing failed — output was: %.200s", text)
@@ -107,4 +109,27 @@ class LlamaService:
 
         if not result:
             return None
+        return result
+
+    @staticmethod
+    def _fix_date_year(result: dict) -> dict:
+        """Force the current year on the date if it differs from the actual year."""
+        date_str = result.get("date")
+        if not date_str:
+            return result
+
+        try:
+            from datetime import datetime
+            now = datetime.now()
+            current_year = now.year
+
+            parts = date_str.split("-")
+            if len(parts) == 3:
+                day, month, year = parts
+                if len(year) == 4 and int(year) != current_year:
+                    result["date"] = f"{day}-{month}-{current_year}"
+                    logger.info("Fixed date year from %s to %s", year, current_year)
+        except (ValueError, IndexError):
+            pass
+
         return result

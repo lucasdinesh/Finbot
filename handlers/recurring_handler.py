@@ -124,8 +124,7 @@ class RecurringHandler(BaseHandler):
         self._ask_day(chat_id, user_id)
 
     def _ask_day(self, chat_id: int, user_id: int) -> None:
-        self.send_info(chat_id, RECURRING_DAY_PROMPT)
-        msg = self.bot.send_message(chat_id, "Digite o dia do vencimento (1-31):")
+        msg = self.bot.send_message(chat_id, RECURRING_DAY_PROMPT)
         self.bot.register_next_step_handler(msg, self.process_day)
 
     def process_day(self, message) -> None:

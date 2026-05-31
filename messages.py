@@ -17,7 +17,7 @@ ADD_SUCCESS = (
     "Nome: {name}\n"
     "Valor: R$ {value:.2f}\n"
     "Data: {date}\n"
-    "Parcelas: {installments}"
+    "{installments_line}"
 )
 ADD_CANCELLED = "❌ Operação cancelada."
 
@@ -47,7 +47,7 @@ DATE_PROCESSING_ERROR = "Erro ao processar a data."
 
 # Date Range Query Messages
 DATE_RANGE_HEADER = "📋 *Despesas de {start_date} até {end_date}*\n\n"
-DATE_RANGE_EXPENSE_FORMAT = "• *{name}*\n  💵 R${amount:,.2f} | 📅 {date} | 📦 {installment}x\n\n"
+DATE_RANGE_EXPENSE_FORMAT = "• [#{id}] *{name}*\n  💵 R${amount:,.2f} | 📅 {date} | 📦 {installment}x\n\n"
 DATE_RANGE_TOTAL = "*Total: R${total:,.2f}*"
 DATE_RANGE_NO_RESULTS = "Nenhuma despesa encontrada entre {start_date} e {end_date}."
 
@@ -56,6 +56,7 @@ MONTHLY_SUMMARY_HEADER = "📊 *Resumo Mensal - {month_name} {year}*\n\n"
 MONTHLY_SUMMARY_TOTAL = "💰 Total: R${total:,.2f}\n"
 MONTHLY_SUMMARY_COUNT = "📝 Despesas registradas: {count}\n"
 MONTHLY_SUMMARY_TOP = "🔝 *Top 5 Despesas:*\n"
+MONTHLY_SUMMARY_CATEGORIES = "\n📂 *Por Categoria:*\n"
 MONTHLY_SUMMARY_ERROR = "Erro ao gerar resumo: {error}"
 
 # Quick Report Messages
@@ -90,7 +91,7 @@ NO_CATEGORIES = "Nenhuma categoria encontrada."
 # Search Messages
 SEARCH_PROMPT = "🔍 Digite o nome da despesa que deseja buscar:"
 SEARCH_NO_RESULTS = "Nenhuma despesa encontrada com o nome *\"{query}\"*."
-SEARCH_RESULT_FORMAT = "• *{name}*\n  💵 R${amount:,.2f} | 📅 {date} | 📦 {installment}x | 💳 {payment_method}"
+SEARCH_RESULT_FORMAT = "• [#{id}] *{name}*\n  💵 R${amount:,.2f} | 📅 {date} | 📦 {installment}x | 💳 {payment_method}"
 
 # Edit Expense Messages
 EDIT_PROMPT = "✏️ Digite o ID da despesa que deseja editar:"
@@ -121,7 +122,7 @@ GOAL_TARGET_PROMPT = "💰 Qual o valor alvo da meta?"
 GOAL_DEADLINE_PROMPT = "📅 Qual o prazo? (DD-MM-YYYY) ou digite '0' se não tiver prazo:"
 GOAL_ADD_SUCCESS = "✅ Meta *{name}* criada com sucesso!"
 GOAL_HEADER = "🎯 *Suas Metas:*\n\n"
-GOAL_FORMAT = "{name}\nR$ {current:,.2f} / R$ {target:,.2f} ({percent:.0f}%)\n{bar}\nPrazo: {deadline}\n"
+GOAL_FORMAT = "• {name}\n  R$ {current:,.2f} / R$ {target:,.2f} ({percent:.0f}%)\n  Prazo: {deadline}\n"
 GOAL_NO_DEADLINE = "Sem prazo"
 NO_GOALS = "Nenhuma meta cadastrada."
 GOAL_CONTRIBUTE_PROMPT = "💰 Digite o valor que deseja adicionar à meta *{name}*:"
@@ -134,7 +135,7 @@ RECURRING_VALUE_PROMPT = "💰 Qual o valor?"
 RECURRING_DAY_PROMPT = "📅 Qual o dia do vencimento? (1-31)"
 RECURRING_ADD_SUCCESS = "✅ Despesa recorrente *{name}* cadastrada! Será gerada todo dia {day}."
 RECURRING_HEADER = "🔄 *Despesas Recorrentes:*\n\n"
-RECURRING_FORMAT = "• *{name}* — R$ {amount:.2f} — Dia {day} — {payment}"
+RECURRING_FORMAT = "• *{name}* — R$ {amount:.2f} — Dia {day} — {payment}\n"
 NO_RECURRING = "Nenhuma despesa recorrente cadastrada."
 RECURRING_DELETED = "✅ Despesa recorrente removida."
 RECURRING_SELECT_DELETE = "Escolha a despesa recorrente para remover:"
@@ -143,7 +144,7 @@ RECURRING_SELECT_DELETE = "Escolha a despesa recorrente para remover:"
 INSIGHT_HEADER = "📈 *Insights - {month} vs {prev_month}*\n\n"
 INSIGHT_TOTAL = "📊 Total: R$ {total:,.2f} ({change:+.1f}%)\n"
 INSIGHT_COUNT = "📝 Despesas: {count} ({count_change:+d})\n\n"
-INSIGHT_CATEGORY_LINE = "{category}: R$ {amount:,.2f} ({change:+.1f}% {arrow})\n"
+INSIGHT_CATEGORY_LINE = "{category}: R$ {amount:,.2f} ({change} {arrow})\n"
 INSIGHT_NO_DATA = "Sem dados suficientes para comparar."
 INSIGHT_ARROW_UP = "↑"
 INSIGHT_ARROW_DOWN = "↓"
@@ -185,7 +186,7 @@ SCAN_CONFIRM_LOW_CONFIDENCE = (
 SCAN_EDIT_VALUE = "✏️ Valor atual: *R$ {current:.2f}*\nDigite o valor correto:"
 SCAN_EDIT_NAME = "✏️ Estabelecimento atual: *{current}*\nDigite o nome correto:"
 SCAN_EDIT_DATE = "✏️ Data atual: *{current}*\nDigite a data correta (DD-MM-YYYY) ou 'hoje':"
-SCAN_EDIT_INSTALLMENTS = "✏️ Parcelas atuais: *{current}*\nDigite o número correto (1-1000):"
+SCAN_EDIT_INSTALLMENTS = "✏️ Parcelas atuais: *{current}*\nDigite 'Sim' ou escreva o número correto (1-1000):"
 SCAN_NO_AMOUNT = "❌ Não foi possível identificar o valor no comprovante.\n\nDigite o valor manualmente:"
 
 # Month Names and Weekday Names (localization)

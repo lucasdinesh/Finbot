@@ -73,6 +73,10 @@ class BaseHandler:
         """Check if user wants to cancel."""
         return text.lower() == 'cancelar'
 
+    def is_accept_command(self, text: str) -> bool:
+        """Check if user wants to keep the current value."""
+        return text.strip().lower() in ("ok", "okay", "sim", "s", "keep")
+
     def handle_cancel(self, chat_id: int) -> bool:
         """
         Handle cancel request.

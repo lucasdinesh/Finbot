@@ -249,11 +249,16 @@ class ExpenseHandler(BaseHandler):
 
         self.state.clear_user_state(user_id)
 
+        if payment_method == "credito" and installment > 1:
+            inst_line = f"Parcelas: {installment}"
+        else:
+            inst_line = ""
+
         success_msg = ADD_SUCCESS.format(
             name=name_despesa,
             value=valor_despesa,
             date=date_despesa or "hoje",
-            installments=installment,
+            installments_line=inst_line,
         )
         self.send_success(chat_id, success_msg)
 
@@ -367,6 +372,7 @@ class ExpenseHandler(BaseHandler):
         for exp in results:
             pm = exp.payment_method or "-"
             text = SEARCH_RESULT_FORMAT.format(
+                id=exp.id,
                 name=exp.name,
                 amount=exp.amount,
                 date=exp.date,
@@ -435,6 +441,19 @@ class ExpenseHandler(BaseHandler):
         chat_id = call.message.chat.id
         field = call.data  # e.g. "EDIT_VALUE"
 
+        if field.startswith("EDIT_PAY_"):
+            payment_map = {
+                "EDIT_PAY_PIX": "pix",
+                "EDIT_PAY_DINHEIRO": "dinheiro",
+                "EDIT_PAY_CREDITO": "credito",
+            }
+            pm = payment_map.get(field)
+            if pm:
+                self.bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=None)
+                self._save_edit_payment(chat_id, user_id, pm)
+            self.bot.answer_callback_query(call.id)
+            return
+
         field_map = {
             "EDIT_VALUE": "valor",
             "EDIT_NAME": "nome",
@@ -449,12 +468,60 @@ class ExpenseHandler(BaseHandler):
 
         self.state.update_user_state(user_id, "edit_field", field)
         self.bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=None)
-        msg = self.bot.send_message(
-            chat_id, EDIT_NEW_VALUE.format(field=field_name),
-            parse_mode="Markdown",
-        )
-        self.bot.register_next_step_handler(msg, self.process_edit_value)
+
+        if field == "EDIT_PAYMENT":
+            self._ask_edit_payment(chat_id, user_id)
+        else:
+            expense_id = self.state.get_user_state(user_id).get("edit_expense_id")
+            current_value = ""
+            if expense_id:
+                expense = self.expense_service.get_expense_by_id(expense_id)
+                if expense:
+                    if field == "EDIT_VALUE":
+                        current_value = f"R$ {expense.amount:.2f}"
+                    elif field == "EDIT_NAME":
+                        current_value = expense.name
+                    elif field == "EDIT_DATE":
+                        current_value = expense.date
+                    elif field == "EDIT_INSTALLMENTS":
+                        current_value = str(expense.installment)
+                    elif field == "EDIT_CATEGORY":
+                        from domain.models import Categories
+                        cats = self.expense_service.get_categories(user_id)
+                        for cid, cname in cats:
+                            if cid == expense.category_id:
+                                current_value = cname
+                                break
+                        if not current_value:
+                            current_value = str(expense.category_id)
+
+            msg = self.bot.send_message(
+                chat_id,
+                f"✏️ Valor atual: *{current_value}*\nDigite o novo valor ou 'ok' para manter:",
+                parse_mode="Markdown",
+            )
+            self.bot.register_next_step_handler(msg, self.process_edit_value)
         self.bot.answer_callback_query(call.id)
+
+    def _ask_edit_payment(self, chat_id: int, user_id: int) -> None:
+        """Show payment method inline buttons during edit."""
+        keyboard = types.InlineKeyboardMarkup(row_width=2)
+        keyboard.add(
+            types.InlineKeyboardButton(PAYMENT_PIX, callback_data="EDIT_PAY_PIX"),
+            types.InlineKeyboardButton(PAYMENT_DINHEIRO, callback_data="EDIT_PAY_DINHEIRO"),
+            types.InlineKeyboardButton(PAYMENT_CREDITO, callback_data="EDIT_PAY_CREDITO"),
+        )
+        self.state.update_user_state(user_id, "edit_field", "EDIT_PAYMENT")
+        self.bot.send_message(chat_id, ADD_PAYMENT_PROMPT, reply_markup=keyboard)
+
+    def _save_edit_payment(self, chat_id: int, user_id: int, payment_method: str) -> None:
+        """Save payment method edit and finish."""
+        expense_id = self.state.get_user_state(user_id).get("edit_expense_id")
+        if not expense_id:
+            return
+        self.expense_service.update_expense(expense_id, payment_method=payment_method)
+        self.send_success(chat_id, EDIT_SUCCESS)
+        self.state.clear_user_state(user_id)
 
     def process_edit_value(self, message) -> None:
         """Process the new value for the field being edited."""
@@ -474,6 +541,27 @@ class ExpenseHandler(BaseHandler):
             return
 
         update_kwargs = {}
+
+        if self.is_accept_command(new_value):
+            expense = self.expense_service.get_expense_by_id(expense_id)
+            if not expense:
+                self.send_error(chat_id, "❌ Despesa não encontrada.")
+                return
+            if field == "EDIT_VALUE":
+                update_kwargs["amount"] = str(expense.amount)
+            elif field == "EDIT_NAME":
+                update_kwargs["name"] = expense.name
+            elif field == "EDIT_DATE":
+                update_kwargs["date"] = expense.date
+            elif field == "EDIT_INSTALLMENTS":
+                update_kwargs["installment"] = str(expense.installment)
+            elif field == "EDIT_CATEGORY":
+                update_kwargs["category_id"] = expense.category_id
+            if update_kwargs:
+                self.expense_service.update_expense(expense_id, **update_kwargs)
+                self.send_success(chat_id, EDIT_SUCCESS)
+                self.state.clear_user_state(user_id)
+            return
 
         if field == "EDIT_VALUE":
             is_valid, val, err = self.validator.validate_value(new_value)

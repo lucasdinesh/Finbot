@@ -133,7 +133,12 @@ class LocalRepository(IExpenseRepository):
 
     def get_by_date_interval(self, start_date: str, end_date: str) -> list[Expenses]:
         with self.connect() as cursor:
-            cursor.execute("SELECT * FROM expenses WHERE date BETWEEN ? AND ?", (start_date, end_date))
+            start = start_date[6:10] + '-' + start_date[3:5] + '-' + start_date[0:2]
+            end = end_date[6:10] + '-' + end_date[3:5] + '-' + end_date[0:2]
+            cursor.execute(
+                "SELECT * FROM expenses WHERE substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2) BETWEEN ? AND ?",
+                (start, end),
+            )
             return [self._row_to_expense(expense) for expense in cursor.fetchall()]
 
     def get_by_user_and_month(self, user_id: int, year: int, month: int) -> list[Expenses]:
@@ -158,7 +163,7 @@ class LocalRepository(IExpenseRepository):
     def search_by_name(self, user_id: int, query: str) -> list[Expenses]:
         with self.connect() as cursor:
             cursor.execute(
-                "SELECT * FROM expenses WHERE user_id=? AND name LIKE ? ORDER BY date DESC",
+                "SELECT * FROM expenses WHERE user_id=? AND name LIKE ? ORDER BY substr(date, 7, 4) DESC, substr(date, 4, 2) DESC, substr(date, 1, 2) DESC",
                 (user_id, f"%{query}%"),
             )
             return [self._row_to_expense(expense) for expense in cursor.fetchall()]

@@ -99,9 +99,9 @@ class DateHandler(BaseHandler):
         # Check if both dates are selected
         date_state = self.state.get_date_selection_state(chat_id)
         if date_state.get("start_selected") and date_state.get("end_selected"):
-            self._process_date_range_query(callback.message, chat_id, date_state)
+            self._process_date_range_query(chat_id, callback.from_user.id, date_state)
 
-    def _process_date_range_query(self, message, chat_id: int, date_state: dict) -> None:
+    def _process_date_range_query(self, chat_id: int, user_id: int, date_state: dict) -> None:
         """Process expense query for date range with validation."""
         try:
             start_date_str = date_state.get("start_date")
@@ -131,7 +131,6 @@ class DateHandler(BaseHandler):
             expenses = expense_repo.get_by_date_interval(start_date_str, end_date_str)
             
             # Filter by user
-            user_id = message.from_user.id
             user_expenses = [e for e in expenses if e.user_id == user_id]
             
             # Display results
@@ -151,6 +150,7 @@ class DateHandler(BaseHandler):
                 result_msg = header
                 for expense in user_expenses:
                     result_msg += DATE_RANGE_EXPENSE_FORMAT.format(
+                        id=expense.id,
                         name=expense.name,
                         amount=float(expense.amount),
                         date=expense.date,

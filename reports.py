@@ -29,6 +29,7 @@ class MonthlySummary:
     expenses: List[Expenses]  # Original expenses list
     expenses_with_installments: List[ExpenseDetailWithInstallment]  # Enhanced with installment info
     top_expenses: List[tuple]  # List of (name, amount) tuples
+    categories_by_total: List[tuple]  # List of (category_name, total_amount) sorted desc
 
 
 @dataclass
@@ -128,6 +129,19 @@ class ReportGenerator:
             reverse=True
         )[:5]
 
+        # Aggregate by category
+        categories = dict(self.repository.get_all_categories(user_id))
+        categories[None] = "Sem categoria"
+        cat_totals: dict = {}
+        for detail in expenses_with_installments:
+            key = detail.expense.category_id or None
+            cat_totals[key] = cat_totals.get(key, 0.0) + detail.monthly_amount
+        categories_by_total = sorted(
+            [(categories[k], v) for k, v in cat_totals.items()],
+            key=lambda x: x[1],
+            reverse=True,
+        )
+
         return MonthlySummary(
             year=year,
             month=month,
@@ -136,6 +150,7 @@ class ReportGenerator:
             expenses=expenses,
             expenses_with_installments=expenses_with_installments,
             top_expenses=top_expenses,
+            categories_by_total=categories_by_total,
         )
 
     def get_quick_report(self, user_id: int) -> QuickReport:
@@ -210,7 +225,7 @@ class ReportGenerator:
         Returns:
             Formatted string representation
         """
-        from messages import MONTHLY_SUMMARY_HEADER, MONTHLY_SUMMARY_TOTAL, MONTHLY_SUMMARY_COUNT, MONTHLY_SUMMARY_TOP
+        from messages import MONTHLY_SUMMARY_HEADER, MONTHLY_SUMMARY_TOTAL, MONTHLY_SUMMARY_COUNT, MONTHLY_SUMMARY_TOP, MONTHLY_SUMMARY_CATEGORIES
 
         text = MONTHLY_SUMMARY_HEADER.format(month_name=MONTH_NAMES[summary.month - 1], year=summary.year)
         text += MONTHLY_SUMMARY_TOTAL.format(total=summary.total_amount)
@@ -218,9 +233,15 @@ class ReportGenerator:
 
         if summary.expenses_with_installments:
             text += f"\n{MONTHLY_SUMMARY_TOP}"
-            for i, detail in enumerate(summary.expenses_with_installments[:5], 1):
+            sorted_top = sorted(summary.expenses_with_installments, key=lambda d: d.monthly_amount, reverse=True)[:5]
+            for i, detail in enumerate(sorted_top, 1):
                 text += f"{i}. {detail.expense.name}\n"
                 text += f"   💰 R${detail.monthly_amount:,.2f} | 📦 {detail.current_installment}/{detail.total_installments}\n"
+
+        if summary.categories_by_total:
+            text += MONTHLY_SUMMARY_CATEGORIES
+            for name, amount in summary.categories_by_total:
+                text += f"• {name}: R${amount:,.2f}\n"
 
         return text
 
@@ -289,7 +310,7 @@ class ReportGenerator:
 
         text = "📋 *Despesas:*\n\n"
         for expense in expenses:
-            text += f"• {expense.name}\n"
+            text += f"• [#{expense.id}] {expense.name}\n"
             text += f"  💵 R${float(expense.amount):,.2f} | "
             text += f"📅 {expense.date} | "
             text += f"📦 {expense.installment}x\n"

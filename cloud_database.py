@@ -7,20 +7,18 @@ from typing import List, Optional
 # import firebase_admin  # Uncomment when implementing
 
 
-class NeonPostgresRepository(IExpenseRepository):
+class PostgresRepository(IExpenseRepository):
     """
-    Neon.tech PostgreSQL implementation of IExpenseRepository.
+    PostgreSQL implementation of IExpenseRepository.
 
     To use this:
-    1. Create a Neon account at https://neon.tech
-    2. Create a new project and database
-    3. Install psycopg2: pip install psycopg2-binary
-    4. Set DATABASE_URL environment variable with your Neon connection string
+    1. Install psycopg2: pip install psycopg2-binary
+    2. Set DATABASE_URL environment variable with your connection string
        Format: postgresql://user:password@host/database
     """
 
     def __init__(self, connection_string: str = None):
-        """Initialize Neon PostgreSQL connection."""
+        """Initialize PostgreSQL connection."""
         import os
         import psycopg2
 
@@ -131,7 +129,7 @@ class NeonPostgresRepository(IExpenseRepository):
         """Get expenses within a date interval."""
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE date >= %s AND date <= %s ORDER BY date DESC",
+                "SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE date >= TO_DATE(%s, 'DD-MM-YYYY') AND date <= TO_DATE(%s, 'DD-MM-YYYY') ORDER BY date DESC",
                 (start_date, end_date))
             rows = cur.fetchall()
             return [Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5], category_id=row[6], payment_method=row[7]) for
@@ -351,7 +349,7 @@ class NeonPostgresRepository(IExpenseRepository):
 
 
 # Option 4: Neon PostgreSQL
-# from cloud_database import NeonPostgresRepository
-# ExpenseRepositorySingleton._instance = NeonPostgresRepository("postgresql://user:password@host/database")
-# Or use environment variable: ExpenseRepositorySingleton._instance = NeonPostgresRepository()
+# from cloud_database import PostgresRepository
+# ExpenseRepositorySingleton._instance = PostgresRepository("postgresql://user:password@host/database")
+# Or use environment variable: ExpenseRepositorySingleton._instance = PostgresRepository()
 
