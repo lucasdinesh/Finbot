@@ -288,8 +288,8 @@ class ExpenseHandler(BaseHandler):
             return self.handle_cancel(message.chat.id)
 
         try:
-            expense_id = int(expense_id_str)
-            if expense_id <= 0:
+            local_id = int(expense_id_str)
+            if local_id <= 0:
                 self.send_error(message.chat.id, DELETE_ID_INVALID)
                 self.register_next_handler(message, self.process_delete_id)
                 return
@@ -299,17 +299,19 @@ class ExpenseHandler(BaseHandler):
             return
 
         try:
-            expense = self.expense_service.get_expense_by_id(expense_id)
-            if not expense or expense.user_id != message.from_user.id:
-                self.send_error(message.chat.id, DELETE_NOT_FOUND.format(id=expense_id))
+            expense = self.expense_service.get_expense_by_user_and_local_id(
+                message.from_user.id, local_id
+            )
+            if not expense:
+                self.send_error(message.chat.id, DELETE_NOT_FOUND.format(id=local_id))
                 self.register_next_handler(message, self.process_delete_id)
                 return
         except Exception:
-            self.send_error(message.chat.id, DELETE_NOT_FOUND.format(id=expense_id))
+            self.send_error(message.chat.id, DELETE_NOT_FOUND.format(id=local_id))
             self.register_next_handler(message, self.process_delete_id)
             return
 
-        self.state.update_user_state(message.from_user.id, "delete_expense_id", expense_id)
+        self.state.update_user_state(message.from_user.id, "delete_expense_id", expense.id)
         self.state.update_user_state(message.from_user.id, "delete_expense", expense)
 
         confirm_msg = DELETE_CONFIRM_PROMPT.format(
@@ -404,8 +406,8 @@ class ExpenseHandler(BaseHandler):
             return self.handle_cancel(message.chat.id)
 
         try:
-            expense_id = int(expense_id_str)
-            if expense_id <= 0:
+            local_id = int(expense_id_str)
+            if local_id <= 0:
                 self.send_error(message.chat.id, "❌ ID inválido!")
                 self.register_next_handler(message, self.process_edit_id)
                 return
@@ -415,17 +417,19 @@ class ExpenseHandler(BaseHandler):
             return
 
         try:
-            expense = self.expense_service.get_expense_by_id(expense_id)
-            if not expense or expense.user_id != message.from_user.id:
-                self.send_error(message.chat.id, EDIT_NOT_FOUND.format(id=expense_id))
+            expense = self.expense_service.get_expense_by_user_and_local_id(
+                message.from_user.id, local_id
+            )
+            if not expense:
+                self.send_error(message.chat.id, EDIT_NOT_FOUND.format(id=local_id))
                 self.register_next_handler(message, self.process_edit_id)
                 return
         except Exception:
-            self.send_error(message.chat.id, EDIT_NOT_FOUND.format(id=expense_id))
+            self.send_error(message.chat.id, EDIT_NOT_FOUND.format(id=local_id))
             self.register_next_handler(message, self.process_edit_id)
             return
 
-        self.state.update_user_state(message.from_user.id, "edit_expense_id", expense_id)
+        self.state.update_user_state(message.from_user.id, "edit_expense_id", expense.id)
         self._ask_edit_field(message.chat.id)
 
     def _ask_edit_field(self, chat_id: int) -> None:

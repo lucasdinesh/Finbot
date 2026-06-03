@@ -181,7 +181,7 @@ class DateHandler(BaseHandler):
                 result_msg = header
                 for expense in user_expenses:
                     result_msg += DATE_RANGE_EXPENSE_FORMAT.format(
-                        id=expense.id,
+                        local_id=expense.local_id,
                         name=expense.name,
                         amount=float(expense.amount),
                         date=expense.date,

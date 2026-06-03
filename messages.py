@@ -48,7 +48,7 @@ DATE_PROCESSING_ERROR = "Erro ao processar a data."
 
 # Date Range Query Messages
 DATE_RANGE_HEADER = "📋 *Despesas de {start_date} até {end_date}*\n\n"
-DATE_RANGE_EXPENSE_FORMAT = "• [#{id}] *{name}*\n  💵 R${amount:,.2f} | 📅 {date} | 📦 {installment}x\n\n"
+DATE_RANGE_EXPENSE_FORMAT = "• [#{local_id}] *{name}*\n  💵 R${amount:,.2f} | 📅 {date} | 📦 {installment}x\n\n"
 DATE_RANGE_TOTAL = "*Total: R${total:,.2f}*"
 DATE_RANGE_NO_RESULTS = "Nenhuma despesa encontrada entre {start_date} e {end_date}."
 
@@ -92,7 +92,7 @@ NO_CATEGORIES = "Nenhuma categoria encontrada."
 # Search Messages
 SEARCH_PROMPT = "🔍 Digite o nome da despesa que deseja buscar:"
 SEARCH_NO_RESULTS = "Nenhuma despesa encontrada com o nome *\"{query}\"*."
-SEARCH_RESULT_FORMAT = "• [#{id}] *{name}*\n  💵 R${amount:,.2f} | 📅 {date} | 📦 {installment}x | 💳 {payment_method}"
+SEARCH_RESULT_FORMAT = "• [#{local_id}] *{name}*\n  💵 R${amount:,.2f} | 📅 {date} | 📦 {installment}x | 💳 {payment_method}"
 
 # Edit Expense Messages
 EDIT_PROMPT = "✏️ Digite o ID da despesa que deseja editar:"

@@ -88,6 +88,8 @@ class LocalRepository(IExpenseRepository):
                 cursor.execute("ALTER TABLE expenses ADD COLUMN category_id INTEGER")
             if 'payment_method' not in existing:
                 cursor.execute("ALTER TABLE expenses ADD COLUMN payment_method TEXT")
+            if 'local_id' not in existing:
+                cursor.execute("ALTER TABLE expenses ADD COLUMN local_id INTEGER DEFAULT 0")
 
             cursor.execute("PRAGMA table_info(categories)")
             cat_cols = {row[1] for row in cursor.fetchall()}
@@ -149,6 +151,14 @@ class LocalRepository(IExpenseRepository):
                 (user_id, f"{year}-{month:02}"),
             )
             return [self._row_to_expense(expense) for expense in cursor.fetchall()]
+
+    def get_by_user_and_local_id(self, user_id: int, local_id: int) -> Expenses:
+        with self.connect() as cursor:
+            cursor.execute("SELECT id, user_id, local_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE user_id = ? AND local_id = ?", (user_id, local_id))
+            row = cursor.fetchone()
+            if row is None:
+                raise ValueError(f"Expense with user_id={user_id} and local_id={local_id} does not exist")
+            return Expenses(id=row[0], user_id=row[1], local_id=row[2], name=row[3], amount=row[4], installment=row[5], date=row[6], category_id=row[7], payment_method=row[8])
 
     def get_total_by_month(self, user_id: int, year: int, month: int) -> float:
         with self.connect() as cursor:

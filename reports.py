@@ -310,7 +310,7 @@ class ReportGenerator:
 
         text = "📋 *Despesas:*\n\n"
         for expense in expenses:
-            text += f"• [#{expense.id}] {expense.name}\n"
+            text += f"• [#{expense.local_id}] {expense.name}\n"
             text += f"  💵 R${float(expense.amount):,.2f} | "
             text += f"📅 {expense.date} | "
             text += f"📦 {expense.installment}x\n"

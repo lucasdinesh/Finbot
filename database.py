@@ -17,6 +17,7 @@ class Expenses:
     installment: int
     category_id: Optional[int] = None
     payment_method: Optional[str] = None
+    local_id: Optional[int] = None
 
 
 class IExpenseRepository(ABC):
@@ -69,6 +70,11 @@ class IExpenseRepository(ABC):
     @abstractmethod
     def delete(self, id: int) -> None:
         """Delete an expense by ID."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_by_user_and_local_id(self, user_id: int, local_id: int) -> Expenses:
+        """Get expense by user_id and local_id (sequential per-user ID)."""
         raise NotImplementedError
 
     @abstractmethod

@@ -36,13 +36,15 @@ class PostgresRepository(IExpenseRepository):
                 CREATE TABLE IF NOT EXISTS expenses (
                     id SERIAL PRIMARY KEY,
                     user_id BIGINT NOT NULL,
+                    local_id INTEGER NOT NULL DEFAULT 0,
                     name VARCHAR(255) NOT NULL,
                     amount DECIMAL(10, 2) NOT NULL,
                     installment INTEGER NOT NULL,
                     date DATE NOT NULL,
                     category_id INTEGER,
                     payment_method VARCHAR(20),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(user_id, local_id)
                 )
             """)
             cur.execute("""
@@ -96,12 +98,20 @@ class PostgresRepository(IExpenseRepository):
                         "INSERT INTO categories (name, user_id) VALUES (%s, NULL) ON CONFLICT DO NOTHING",
                         (name,),
                     )
-            # Migrate user_id columns to BIGINT for existing tables
+            # Migrate existing tables
             for table in ("expenses", "categories", "budgets", "savings_goals", "recurring_expenses"):
                 try:
                     cur.execute(f"ALTER TABLE {table} ALTER COLUMN user_id TYPE BIGINT")
                 except Exception:
                     pass
+            try:
+                cur.execute("ALTER TABLE expenses ADD COLUMN local_id INTEGER")
+            except Exception:
+                pass
+            try:
+                cur.execute("ALTER TABLE expenses ADD CONSTRAINT expenses_user_id_local_id UNIQUE (user_id, local_id)")
+            except Exception:
+                pass
             self.conn.commit()
 
     def _reset_conn(self):
@@ -111,57 +121,56 @@ class PostgresRepository(IExpenseRepository):
         except Exception:
             pass
 
+    def _row_to_expense(self, row):
+        return Expenses(id=row[0], user_id=row[1], local_id=row[2], name=row[3],
+                        amount=row[4], installment=row[5], date=row[6],
+                        category_id=row[7], payment_method=row[8])
+
+    EXPENSE_COLS = "id, user_id, local_id, name, amount, installment, date, category_id, payment_method"
+
     def get(self, id: int) -> Expenses:
         """Get a single expense by ID."""
         self._reset_conn()
         with self.conn.cursor() as cur:
-            cur.execute("SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE id = %s", (id,))
+            cur.execute(f"SELECT {self.EXPENSE_COLS} FROM expenses WHERE id = %s", (id,))
             row = cur.fetchone()
             if row is None:
                 raise ValueError(f"Expense with id {id} does not exist")
-            return Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5], category_id=row[6], payment_method=row[7])
+            return self._row_to_expense(row)
 
     def get_all(self) -> List[Expenses]:
         """Get all expenses."""
         self._reset_conn()
         with self.conn.cursor() as cur:
-            cur.execute("SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses ORDER BY date DESC")
-            rows = cur.fetchall()
-            return [Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5], category_id=row[6], payment_method=row[7]) for
-                    row in rows]
+            cur.execute(f"SELECT {self.EXPENSE_COLS} FROM expenses ORDER BY date DESC")
+            return [self._row_to_expense(row) for row in cur.fetchall()]
 
     def get_by_user(self, user_id: int) -> List[Expenses]:
         """Get all expenses for a specific user."""
         self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE user_id = %s ORDER BY date DESC",
+                f"SELECT {self.EXPENSE_COLS} FROM expenses WHERE user_id = %s ORDER BY date DESC",
                 (user_id,))
-            rows = cur.fetchall()
-            return [Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5], category_id=row[6], payment_method=row[7]) for
-                    row in rows]
+            return [self._row_to_expense(row) for row in cur.fetchall()]
 
     def get_by_date_interval(self, start_date: str, end_date: str) -> List[Expenses]:
         """Get expenses within a date interval."""
         self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE date >= TO_DATE(%s, 'DD-MM-YYYY') AND date <= TO_DATE(%s, 'DD-MM-YYYY') ORDER BY date DESC",
+                f"SELECT {self.EXPENSE_COLS} FROM expenses WHERE date >= TO_DATE(%s, 'DD-MM-YYYY') AND date <= TO_DATE(%s, 'DD-MM-YYYY') ORDER BY date DESC",
                 (start_date, end_date))
-            rows = cur.fetchall()
-            return [Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5], category_id=row[6], payment_method=row[7]) for
-                    row in rows]
+            return [self._row_to_expense(row) for row in cur.fetchall()]
 
     def get_by_user_and_month(self, user_id: int, year: int, month: int) -> List[Expenses]:
         """Get all expenses for a specific user in a given month."""
         self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE user_id = %s AND TO_CHAR(date, 'YYYY-MM') = %s ORDER BY date DESC",
+                f"SELECT {self.EXPENSE_COLS} FROM expenses WHERE user_id = %s AND TO_CHAR(date, 'YYYY-MM') = %s ORDER BY date DESC",
                 (user_id, f"{year}-{month:02}"))
-            rows = cur.fetchall()
-            return [Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5], category_id=row[6], payment_method=row[7]) for
-                    row in rows]
+            return [self._row_to_expense(row) for row in cur.fetchall()]
 
     def get_total_by_month(self, user_id: int, year: int, month: int) -> float:
         """Get total expense amount for a user in a given month."""
@@ -188,12 +197,18 @@ class PostgresRepository(IExpenseRepository):
         else:
             iso_date = raw_date
 
+        user_id = kwargs['user_id']
+
         self._reset_conn()
         try:
             with self.conn.cursor() as cur:
+                cur.execute("SELECT COALESCE(MAX(local_id), 0) + 1 FROM expenses WHERE user_id = %s", (user_id,))
+                next_local_id = cur.fetchone()[0]
                 cur.execute(
-                    "INSERT INTO expenses (user_id, name, amount, installment, date) VALUES (%s, %s, %s, %s, %s)",
-                    (kwargs['user_id'], kwargs['name'], kwargs['amount'], kwargs['installment'], iso_date)
+                    """INSERT INTO expenses (user_id, local_id, name, amount, installment, date, category_id, payment_method)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (user_id, next_local_id, kwargs['name'], kwargs['amount'], kwargs['installment'], iso_date,
+                     kwargs.get('category_id'), kwargs.get('payment_method'))
                 )
                 self.conn.commit()
         except Exception:
@@ -243,13 +258,22 @@ class PostgresRepository(IExpenseRepository):
         self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE user_id = %s AND name ILIKE %s ORDER BY date DESC",
+                f"SELECT {self.EXPENSE_COLS} FROM expenses WHERE user_id = %s AND name ILIKE %s ORDER BY date DESC",
                 (user_id, f"%{query}%"),
             )
-            return [
-                Expenses(id=row[0], user_id=row[1], name=row[2], amount=row[3], installment=row[4], date=row[5], category_id=row[6], payment_method=row[7])
-                for row in cur.fetchall()
-            ]
+            return [self._row_to_expense(row) for row in cur.fetchall()]
+
+    def get_by_user_and_local_id(self, user_id: int, local_id: int) -> Expenses:
+        self._reset_conn()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"SELECT {self.EXPENSE_COLS} FROM expenses WHERE user_id = %s AND local_id = %s",
+                (user_id, local_id),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise ValueError(f"Expense with user_id={user_id} and local_id={local_id} does not exist")
+            return self._row_to_expense(row)
 
     def get_all_categories(self, user_id: int | None = None) -> list[tuple]:
         self._reset_conn()

@@ -99,6 +99,10 @@ class ExpenseService:
         logger.info("get_expense_by_id(id=%d)", expense_id)
         return self.repository.get(expense_id)
 
+    def get_expense_by_user_and_local_id(self, user_id: int, local_id: int) -> Expenses:
+        logger.info("get_expense_by_user_and_local_id(user=%d, local_id=%d)", user_id, local_id)
+        return self.repository.get_by_user_and_local_id(user_id, local_id)
+
     def delete_expense(self, expense_id: int) -> None:
         logger.info("delete_expense(id=%d)", expense_id)
         self.repository.delete(expense_id)
