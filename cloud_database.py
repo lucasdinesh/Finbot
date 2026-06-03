@@ -98,8 +98,16 @@ class PostgresRepository(IExpenseRepository):
                     )
             self.conn.commit()
 
+    def _reset_conn(self):
+        """Rollback any aborted transaction so the connection is usable again."""
+        try:
+            self.conn.rollback()
+        except Exception:
+            pass
+
     def get(self, id: int) -> Expenses:
         """Get a single expense by ID."""
+        self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute("SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE id = %s", (id,))
             row = cur.fetchone()
@@ -109,6 +117,7 @@ class PostgresRepository(IExpenseRepository):
 
     def get_all(self) -> List[Expenses]:
         """Get all expenses."""
+        self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute("SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses ORDER BY date DESC")
             rows = cur.fetchall()
@@ -117,6 +126,7 @@ class PostgresRepository(IExpenseRepository):
 
     def get_by_user(self, user_id: int) -> List[Expenses]:
         """Get all expenses for a specific user."""
+        self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute(
                 "SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE user_id = %s ORDER BY date DESC",
@@ -127,6 +137,7 @@ class PostgresRepository(IExpenseRepository):
 
     def get_by_date_interval(self, start_date: str, end_date: str) -> List[Expenses]:
         """Get expenses within a date interval."""
+        self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute(
                 "SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE date >= TO_DATE(%s, 'DD-MM-YYYY') AND date <= TO_DATE(%s, 'DD-MM-YYYY') ORDER BY date DESC",
@@ -137,6 +148,7 @@ class PostgresRepository(IExpenseRepository):
 
     def get_by_user_and_month(self, user_id: int, year: int, month: int) -> List[Expenses]:
         """Get all expenses for a specific user in a given month."""
+        self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute(
                 "SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE user_id = %s AND TO_CHAR(date, 'YYYY-MM') = %s ORDER BY date DESC",
@@ -147,6 +159,7 @@ class PostgresRepository(IExpenseRepository):
 
     def get_total_by_month(self, user_id: int, year: int, month: int) -> float:
         """Get total expense amount for a user in a given month."""
+        self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute(
                 "SELECT SUM(amount) FROM expenses WHERE user_id = %s AND TO_CHAR(date, 'YYYY-MM') = %s",
@@ -169,12 +182,17 @@ class PostgresRepository(IExpenseRepository):
         else:
             iso_date = raw_date
 
-        with self.conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO expenses (user_id, name, amount, installment, date) VALUES (%s, %s, %s, %s, %s)",
-                (kwargs['user_id'], kwargs['name'], kwargs['amount'], kwargs['installment'], iso_date)
-            )
-            self.conn.commit()
+        self._reset_conn()
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO expenses (user_id, name, amount, installment, date) VALUES (%s, %s, %s, %s, %s)",
+                    (kwargs['user_id'], kwargs['name'], kwargs['amount'], kwargs['installment'], iso_date)
+                )
+                self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def update(self, id: int, **kwargs: object) -> None:
         """Update an expense."""
@@ -195,17 +213,28 @@ class PostgresRepository(IExpenseRepository):
         set_clause = ", ".join([f"{key} = %s" for key in update_fields.keys()])
         values = list(update_fields.values()) + [id]
 
-        with self.conn.cursor() as cur:
-            cur.execute(f"UPDATE expenses SET {set_clause} WHERE id = %s", values)
-            self.conn.commit()
+        self._reset_conn()
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(f"UPDATE expenses SET {set_clause} WHERE id = %s", values)
+                self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def delete(self, id: int) -> None:
         """Delete an expense."""
-        with self.conn.cursor() as cur:
-            cur.execute("DELETE FROM expenses WHERE id = %s", (id,))
-            self.conn.commit()
+        self._reset_conn()
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("DELETE FROM expenses WHERE id = %s", (id,))
+                self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def search_by_name(self, user_id: int, query: str) -> list[Expenses]:
+        self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute(
                 "SELECT id, user_id, name, amount, installment, date, category_id, payment_method FROM expenses WHERE user_id = %s AND name ILIKE %s ORDER BY date DESC",
@@ -217,6 +246,7 @@ class PostgresRepository(IExpenseRepository):
             ]
 
     def get_all_categories(self, user_id: int | None = None) -> list[tuple]:
+        self._reset_conn()
         with self.conn.cursor() as cur:
             if user_id is not None:
                 cur.execute(
@@ -228,22 +258,28 @@ class PostgresRepository(IExpenseRepository):
             return cur.fetchall()
 
     def create_category(self, name: str, user_id: int | None = None) -> int:
-        with self.conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO categories (name, user_id) VALUES (%s, %s) ON CONFLICT (name, user_id) DO NOTHING RETURNING id",
-                (name, user_id),
-            )
-            row = cur.fetchone()
-            self.conn.commit()
-            if row:
-                return row[0]
-            cur.execute(
-                "SELECT id FROM categories WHERE name = %s AND user_id IS %s",
-                (name, user_id),
-            )
-            return cur.fetchone()[0]
+        self._reset_conn()
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO categories (name, user_id) VALUES (%s, %s) ON CONFLICT (name, user_id) DO NOTHING RETURNING id",
+                    (name, user_id),
+                )
+                row = cur.fetchone()
+                self.conn.commit()
+                if row:
+                    return row[0]
+                cur.execute(
+                    "SELECT id FROM categories WHERE name = %s AND user_id IS %s",
+                    (name, user_id),
+                )
+                return cur.fetchone()[0]
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def get_category_total_for_month(self, user_id: int, category_id: int, month: int, year: int) -> float:
+        self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute(
                 "SELECT SUM(amount) FROM expenses WHERE user_id = %s AND category_id = %s AND TO_CHAR(date, 'YYYY-MM') = %s",
@@ -253,16 +289,22 @@ class PostgresRepository(IExpenseRepository):
             return float(result[0]) if result[0] is not None else 0.0
 
     def set_budget(self, user_id: int, category_id: int, month: int, year: int, amount: float) -> None:
-        with self.conn.cursor() as cur:
-            cur.execute(
-                """INSERT INTO budgets (user_id, category_id, month, year, amount)
-                   VALUES (%s, %s, %s, %s, %s)
-                   ON CONFLICT (user_id, category_id, month, year) DO UPDATE SET amount = EXCLUDED.amount""",
-                (user_id, category_id, month, year, amount),
-            )
-            self.conn.commit()
+        self._reset_conn()
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO budgets (user_id, category_id, month, year, amount)
+                       VALUES (%s, %s, %s, %s, %s)
+                       ON CONFLICT (user_id, category_id, month, year) DO UPDATE SET amount = EXCLUDED.amount""",
+                    (user_id, category_id, month, year, amount),
+                )
+                self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def get_budgets_for_month(self, user_id: int, month: int, year: int) -> list[dict]:
+        self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute(
                 """SELECT b.id, b.category_id, c.name, b.amount
@@ -278,15 +320,21 @@ class PostgresRepository(IExpenseRepository):
             ]
 
     def add_savings_goal(self, user_id: int, name: str, target_amount: float, deadline: str | None) -> int:
-        with self.conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO savings_goals (user_id, name, target_amount, deadline) VALUES (%s, %s, %s, %s) RETURNING id",
-                (user_id, name, target_amount, deadline),
-            )
-            self.conn.commit()
-            return cur.fetchone()[0]
+        self._reset_conn()
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO savings_goals (user_id, name, target_amount, deadline) VALUES (%s, %s, %s, %s) RETURNING id",
+                    (user_id, name, target_amount, deadline),
+                )
+                self.conn.commit()
+                return cur.fetchone()[0]
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def get_savings_goals(self, user_id: int) -> list[dict]:
+        self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute(
                 "SELECT id, name, target_amount, current_amount, deadline, created_at FROM savings_goals WHERE user_id = %s ORDER BY created_at DESC",
@@ -298,25 +346,41 @@ class PostgresRepository(IExpenseRepository):
             ]
 
     def contribute_to_goal(self, goal_id: int, amount: float) -> None:
-        with self.conn.cursor() as cur:
-            cur.execute("UPDATE savings_goals SET current_amount = current_amount + %s WHERE id = %s", (amount, goal_id))
-            self.conn.commit()
+        self._reset_conn()
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("UPDATE savings_goals SET current_amount = current_amount + %s WHERE id = %s", (amount, goal_id))
+                self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def delete_savings_goal(self, goal_id: int) -> None:
-        with self.conn.cursor() as cur:
-            cur.execute("DELETE FROM savings_goals WHERE id = %s", (goal_id,))
-            self.conn.commit()
+        self._reset_conn()
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("DELETE FROM savings_goals WHERE id = %s", (goal_id,))
+                self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def add_recurring_expense(self, user_id: int, name: str, amount: float, category_id: int | None, payment_method: str | None, day_of_month: int) -> int:
-        with self.conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO recurring_expenses (user_id, name, amount, category_id, payment_method, day_of_month) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
-                (user_id, name, amount, category_id, payment_method, day_of_month),
-            )
-            self.conn.commit()
-            return cur.fetchone()[0]
+        self._reset_conn()
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO recurring_expenses (user_id, name, amount, category_id, payment_method, day_of_month) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+                    (user_id, name, amount, category_id, payment_method, day_of_month),
+                )
+                self.conn.commit()
+                return cur.fetchone()[0]
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def get_recurring_expenses(self, user_id: int) -> list[dict]:
+        self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute(
                 "SELECT id, name, amount, category_id, payment_method, day_of_month, last_generated, active FROM recurring_expenses WHERE user_id = %s ORDER BY name",
@@ -328,6 +392,7 @@ class PostgresRepository(IExpenseRepository):
             ]
 
     def get_due_recurring_expenses(self) -> list[dict]:
+        self._reset_conn()
         with self.conn.cursor() as cur:
             cur.execute(
                 "SELECT id, user_id, name, amount, category_id, payment_method, day_of_month, last_generated FROM recurring_expenses WHERE active = TRUE",
@@ -352,14 +417,24 @@ class PostgresRepository(IExpenseRepository):
             return results
 
     def mark_recurring_generated(self, recurring_id: int, date: str) -> None:
-        with self.conn.cursor() as cur:
-            cur.execute("UPDATE recurring_expenses SET last_generated = %s WHERE id = %s", (date, recurring_id))
-            self.conn.commit()
+        self._reset_conn()
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("UPDATE recurring_expenses SET last_generated = %s WHERE id = %s", (date, recurring_id))
+                self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
     def delete_recurring_expense(self, recurring_id: int) -> None:
-        with self.conn.cursor() as cur:
-            cur.execute("DELETE FROM recurring_expenses WHERE id = %s", (recurring_id,))
-            self.conn.commit()
+        self._reset_conn()
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("DELETE FROM recurring_expenses WHERE id = %s", (recurring_id,))
+                self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
 
 
 # Option 4: Neon PostgreSQL
