@@ -6,7 +6,7 @@ services:
       - pgdata:/var/lib/postgresql/data
     environment:
       POSTGRES_USER: financialbot
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?}
+      POSTGRES_PASSWORD: finbot123
       POSTGRES_DB: financial_bot
     restart: unless-stopped
     healthcheck:
