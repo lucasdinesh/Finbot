@@ -98,7 +98,7 @@ class ReceiptHandler(BaseHandler):
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 image_bytes = pool.submit(
                     self.bot.download_file, file_info.file_path
-                ).result(timeout=30)
+                ).result(timeout=60)
             logger.info("Photo downloaded (%d bytes)", len(image_bytes))
         except concurrent.futures.TimeoutError:
             logger.error("Photo download timed out")
@@ -116,7 +116,7 @@ class ReceiptHandler(BaseHandler):
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(self._ocr_and_parse, image_bytes)
                 try:
-                    parsed = future.result(timeout=60)
+                    parsed = future.result(timeout=180)
                 except concurrent.futures.TimeoutError:
                     if future.done():
                         parsed = future.result()
@@ -124,7 +124,7 @@ class ReceiptHandler(BaseHandler):
                         raise
             logger.info("OCR + parse completed")
         except concurrent.futures.TimeoutError:
-            logger.error("OCR + parse timed out after 120s")
+            logger.error("OCR + parse timed out after 180s")
             self.bot.edit_message_text(SCAN_ERROR, chat_id, status_msg.message_id)
             return
         except Exception as e:
