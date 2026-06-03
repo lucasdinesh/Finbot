@@ -1,4 +1,5 @@
 """OCR service for receipt text extraction using EasyOCR."""
+import concurrent.futures
 import json
 import logging
 import os
@@ -166,34 +167,33 @@ class OcrService:
         ordered.remove(start_variant)
         ordered.insert(0, start_variant)
 
-        best_results = None
-        best_score = -1.0
-        best_variant_name = None
-
         base_reader = self._get_reader()
 
-        # Per-variant metrics collection
         run_id = uuid.uuid4().hex[:8]
         per_variant_metrics = {}
 
+        # Preprocess all variants first (fast)
+        preprocessed = {}
         for name in ordered:
             prep_func = variant_map[name][1]
-            logger.info("Trying OCR variant: %s", name)
-            variant_start = time.time()
             try:
-                prep_img = prep_func(img)
+                preprocessed[name] = prep_func(img)
+                logger.info("Preprocessed variant: %s", name)
             except Exception as e:
                 logger.warning("Variant %s preprocessing failed: %s", name, e)
-                continue
 
+        if not preprocessed:
+            logger.warning("All variants failed preprocessing")
+            return []
+
+        def run_variant(name):
+            prep_img = preprocessed[name]
+            start = time.time()
             try:
                 results = base_reader.readtext(prep_img)
             except Exception as exc:
-                logger.warning("EasyOCR inference failed for variant %s: %s", name, exc)
-                continue
-
-            elapsed = time.time() - variant_start
-
+                return name, None, time.time() - start, str(exc)
+            elapsed = time.time() - start
             extracted = []
             for item in results:
                 if len(item) == 3:
@@ -204,40 +204,55 @@ class OcrService:
                 text = text.strip()
                 if text:
                     extracted.append((text, confidence))
+            return name, extracted, elapsed, None
 
-            logger.info("Variant %s: OCR found %d lines", name, len(extracted))
-            if extracted:
-                for i, (text, conf) in enumerate(extracted[:3]):
-                    logger.info("Variant %s line %d: conf=%.4f | %s", name, i+1, conf, text)
-                if len(extracted) > 3:
-                    logger.info("Variant %s: ... and %d more lines", name, len(extracted)-3)
+        best_results = None
+        best_score = -1.0
+        best_variant_name = None
+        done = False
 
-            if extracted:
-                avg_conf = sum(c for _, c in extracted) / len(extracted)
-            else:
-                avg_conf = 0.0
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            fut_map = {pool.submit(run_variant, n): n for n in preprocessed}
+            for fut in concurrent.futures.as_completed(fut_map):
+                name, extracted, elapsed, error = fut.result()
 
-            score = avg_conf
+                if error:
+                    per_variant_metrics[name] = {
+                        "num_lines": 0, "avg_confidence": 0.0, "time_seconds": round(elapsed, 3),
+                        "texts": [], "confidences": [], "score": 0.0, "threshold_met": False,
+                    }
+                    continue
 
-            per_variant_metrics[name] = {
-                "num_lines": len(extracted),
-                "avg_confidence": float(round(float(avg_conf), 4)),
-                "time_seconds": round(elapsed, 3),
-                "texts": [t for t, _ in extracted],
-                "confidences": [float(round(float(c), 4)) for _, c in extracted],
-                "score": float(round(float(score), 4)),
-                "threshold_met": bool(score >= threshold),
-            }
+                if extracted:
+                    avg_conf = sum(c for _, c in extracted) / len(extracted)
+                else:
+                    avg_conf = 0.0
+                score = avg_conf
 
-            if score > best_score:
-                best_score = score
-                best_results = extracted
-                best_variant_name = name
+                per_variant_metrics[name] = {
+                    "num_lines": len(extracted),
+                    "avg_confidence": float(round(float(avg_conf), 4)),
+                    "time_seconds": round(elapsed, 3),
+                    "texts": [t for t, _ in extracted],
+                    "confidences": [float(round(float(c), 4)) for _, c in extracted],
+                    "score": float(round(float(score), 4)),
+                    "threshold_met": bool(score >= threshold),
+                }
 
-            if score >= threshold:
-                logger.info("Variant %s met threshold (%.4f >= %.4f), early exit",
-                            name, score, threshold)
-                break
+                logger.info("Variant %s: OCR found %d lines (score=%.4f, time=%.1fs)",
+                            name, len(extracted), score, elapsed)
+
+                if score > best_score:
+                    best_score = score
+                    best_results = extracted
+                    best_variant_name = name
+
+                if score >= threshold and not done:
+                    logger.info("Variant %s met threshold (%.4f >= %.4f), stopping", name, score, threshold)
+                    done = True
+                    for f in fut_map:
+                        if not f.done():
+                            f.cancel()
 
         if best_results is None:
             logger.warning("All OCR variants failed; returning empty list")
