@@ -190,7 +190,15 @@ class OcrService:
             prep_img = preprocessed[name]
             start = time.time()
             try:
-                results = base_reader.readtext(prep_img)
+                old_fd = os.dup(2)
+                devnull_fd = os.open(os.devnull, os.O_RDWR)
+                os.dup2(devnull_fd, 2)
+                try:
+                    results = base_reader.readtext(prep_img)
+                finally:
+                    os.dup2(old_fd, 2)
+                    os.close(devnull_fd)
+                    os.close(old_fd)
             except Exception as exc:
                 return name, None, time.time() - start, str(exc)
             elapsed = time.time() - start
