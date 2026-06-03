@@ -14,6 +14,8 @@ os.environ["TQDM_DISABLE"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 warnings.filterwarnings("ignore", message="Could not initialize NNPACK")
+# Redirect C-level stderr to /dev/null to suppress PyTorch NNPACK C++ warnings
+os.dup2(os.open(os.devnull, os.O_RDWR), 2)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -52,16 +54,8 @@ class OcrService:
             if self._reader is not None:
                 return self._reader
 
-            old_fd = os.dup(2)
-            devnull_fd = os.open(os.devnull, os.O_RDWR)
-            os.dup2(devnull_fd, 2)
-            try:
-                import easyocr
-                self._reader = easyocr.Reader(['en', 'pt'], gpu=False)
-            finally:
-                os.dup2(old_fd, 2)
-                os.close(devnull_fd)
-                os.close(old_fd)
+            import easyocr
+            self._reader = easyocr.Reader(['en', 'pt'], gpu=False)
             self._engine = 'easyocr'
             logger.info("Using EasyOCR engine")
         return self._reader
@@ -190,15 +184,7 @@ class OcrService:
             prep_img = preprocessed[name]
             start = time.time()
             try:
-                old_fd = os.dup(2)
-                devnull_fd = os.open(os.devnull, os.O_RDWR)
-                os.dup2(devnull_fd, 2)
-                try:
-                    results = base_reader.readtext(prep_img)
-                finally:
-                    os.dup2(old_fd, 2)
-                    os.close(devnull_fd)
-                    os.close(old_fd)
+                results = base_reader.readtext(prep_img)
             except Exception as exc:
                 return name, None, time.time() - start, str(exc)
             elapsed = time.time() - start
