@@ -35,7 +35,7 @@ class PostgresRepository(IExpenseRepository):
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS expenses (
                     id SERIAL PRIMARY KEY,
-                    user_id INTEGER NOT NULL,
+                    user_id BIGINT NOT NULL,
                     name VARCHAR(255) NOT NULL,
                     amount DECIMAL(10, 2) NOT NULL,
                     installment INTEGER NOT NULL,
@@ -49,14 +49,14 @@ class PostgresRepository(IExpenseRepository):
                 CREATE TABLE IF NOT EXISTS categories (
                     id SERIAL PRIMARY KEY,
                     name VARCHAR(100) NOT NULL,
-                    user_id INTEGER,
+                    user_id BIGINT,
                     UNIQUE(name, user_id)
                 )
             """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS budgets (
                     id SERIAL PRIMARY KEY,
-                    user_id INTEGER NOT NULL,
+                    user_id BIGINT NOT NULL,
                     category_id INTEGER NOT NULL,
                     month INTEGER NOT NULL,
                     year INTEGER NOT NULL,
@@ -67,7 +67,7 @@ class PostgresRepository(IExpenseRepository):
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS savings_goals (
                     id SERIAL PRIMARY KEY,
-                    user_id INTEGER NOT NULL,
+                    user_id BIGINT NOT NULL,
                     name VARCHAR(100) NOT NULL,
                     target_amount DECIMAL(10, 2) NOT NULL,
                     current_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
@@ -78,7 +78,7 @@ class PostgresRepository(IExpenseRepository):
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS recurring_expenses (
                     id SERIAL PRIMARY KEY,
-                    user_id INTEGER NOT NULL,
+                    user_id BIGINT NOT NULL,
                     name VARCHAR(100) NOT NULL,
                     amount DECIMAL(10, 2) NOT NULL,
                     category_id INTEGER,
@@ -96,6 +96,12 @@ class PostgresRepository(IExpenseRepository):
                         "INSERT INTO categories (name, user_id) VALUES (%s, NULL) ON CONFLICT DO NOTHING",
                         (name,),
                     )
+            # Migrate user_id columns to BIGINT for existing tables
+            for table in ("expenses", "categories", "budgets", "savings_goals", "recurring_expenses"):
+                try:
+                    cur.execute(f"ALTER TABLE {table} ALTER COLUMN user_id TYPE BIGINT")
+                except Exception:
+                    pass
             self.conn.commit()
 
     def _reset_conn(self):
