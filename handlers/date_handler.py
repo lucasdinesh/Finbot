@@ -49,6 +49,7 @@ class DateHandler(BaseHandler):
 
     def handle_month_navigation(self, callback) -> None:
         """Handle prev/next month navigation in calendar."""
+        chat_id = callback.message.chat.id
         parts = callback.data.split(";")
         action = parts[0]
         year, month = int(parts[1]), int(parts[2])
@@ -64,12 +65,13 @@ class DateHandler(BaseHandler):
                 month = 1
             else:
                 month += 1
-        last_day = cal_mod.monthrange(year, month)[1]
+        cal_mod.monthrange(year, month)  # validate month
+        self.state.set_shown_date(chat_id, year, month)
         prefix = "START-" if "START-" in action else "END-"
         calendar_json = inline_calendar.create_calendar(year, month, prefix=prefix, language="pt")
         markup = self._json_to_markup(calendar_json)
         self.bot.edit_message_reply_markup(
-            chat_id=callback.message.chat.id,
+            chat_id=chat_id,
             message_id=callback.message.message_id,
             reply_markup=markup,
         )
