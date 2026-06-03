@@ -331,6 +331,12 @@ def handle_day_callback(call):
     date_handler.handle_day_selection(call)
 
 
+@bot.callback_query_handler(func=lambda call: 'PREV-MONTH' in call.data or 'NEXT-MONTH' in call.data)
+def handle_month_nav_callback(call):
+    """Handle prev/next month navigation in calendar."""
+    date_handler.handle_month_navigation(call)
+
+
 @bot.callback_query_handler(func=lambda call: call.data.startswith('RECEIPT'))
 def handle_receipt_callback(call):
     """Handle receipt confirmation / edit / cancel callbacks."""

@@ -1,5 +1,6 @@
 """Handler for date selection commands."""
 import json
+import calendar as cal_mod
 from datetime import datetime
 from handlers.base_handler import BaseHandler
 import inline_calendar
@@ -45,6 +46,34 @@ class DateHandler(BaseHandler):
         # Send calendar selections
         self.bot.send_message(chat_id, DATE_SELECT_START, reply_markup=start_markup)
         self.bot.send_message(chat_id, DATE_SELECT_END, reply_markup=end_markup)
+
+    def handle_month_navigation(self, callback) -> None:
+        """Handle prev/next month navigation in calendar."""
+        parts = callback.data.split(";")
+        action = parts[0]
+        year, month = int(parts[1]), int(parts[2])
+        if "PREV-MONTH" in action:
+            if month == 1:
+                year -= 1
+                month = 12
+            else:
+                month -= 1
+        else:
+            if month == 12:
+                year += 1
+                month = 1
+            else:
+                month += 1
+        last_day = cal_mod.monthrange(year, month)[1]
+        prefix = "START-" if "START-" in action else "END-"
+        calendar_json = inline_calendar.create_calendar(year, month, prefix=prefix, language="pt")
+        markup = self._json_to_markup(calendar_json)
+        self.bot.edit_message_reply_markup(
+            chat_id=callback.message.chat.id,
+            message_id=callback.message.message_id,
+            reply_markup=markup,
+        )
+        self.bot.answer_callback_query(callback.id)
 
     def handle_day_selection(self, callback) -> None:
         """Handle day selection from calendar."""

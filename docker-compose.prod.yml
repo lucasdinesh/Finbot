@@ -17,7 +17,7 @@ services:
 
   bot:
     build: .
-    container_name: financial-bot
+    container_name: finbot
     depends_on:
       db:
         condition: service_healthy
