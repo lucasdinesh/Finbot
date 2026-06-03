@@ -14,8 +14,6 @@ os.environ["TQDM_DISABLE"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 warnings.filterwarnings("ignore", message="Could not initialize NNPACK")
-# Redirect C-level stderr to /dev/null to suppress PyTorch NNPACK C++ warnings
-os.dup2(os.open(os.devnull, os.O_RDWR), 2)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -55,7 +53,15 @@ class OcrService:
                 return self._reader
 
             import easyocr
-            self._reader = easyocr.Reader(['en', 'pt'], gpu=False)
+            old_fd = os.dup(2)
+            devnull_fd = os.open(os.devnull, os.O_RDWR)
+            os.dup2(devnull_fd, 2)
+            try:
+                self._reader = easyocr.Reader(['en', 'pt'], gpu=False)
+            finally:
+                os.dup2(old_fd, 2)
+                os.close(devnull_fd)
+                os.close(old_fd)
             self._engine = 'easyocr'
             logger.info("Using EasyOCR engine")
         return self._reader
