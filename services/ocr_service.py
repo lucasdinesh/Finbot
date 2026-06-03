@@ -215,12 +215,12 @@ class OcrService:
 
             per_variant_metrics[name] = {
                 "num_lines": len(extracted),
-                "avg_confidence": round(avg_conf, 4),
+                "avg_confidence": float(round(float(avg_conf), 4)),
                 "time_seconds": round(elapsed, 3),
                 "texts": [t for t, _ in extracted],
-                "confidences": [round(c, 4) for _, c in extracted],
-                "score": round(score, 4),
-                "threshold_met": score >= threshold,
+                "confidences": [float(round(float(c), 4)) for _, c in extracted],
+                "score": float(round(float(score), 4)),
+                "threshold_met": bool(score >= threshold),
             }
 
             if score > best_score:
@@ -261,7 +261,7 @@ class OcrService:
             "variants": per_variant_metrics,
             "selected": {
                 "variant": best_variant_name,
-                "score": round(best_score, 4),
+                "score": float(round(float(best_score), 4)),
                 "num_lines": len(best_results),
             },
         }
