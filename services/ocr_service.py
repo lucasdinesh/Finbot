@@ -4,11 +4,15 @@ import logging
 import os
 import time
 import uuid
+import warnings
 from datetime import datetime
 from threading import Lock
 from typing import List, Tuple
 
 os.environ["TQDM_DISABLE"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+warnings.filterwarnings("ignore", message="Could not initialize NNPACK")
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -47,8 +51,10 @@ class OcrService:
             if self._reader is not None:
                 return self._reader
 
-            import easyocr
-            self._reader = easyocr.Reader(['en', 'pt'], gpu=False)
+            import contextlib
+            with open(os.devnull, "w") as devnull, contextlib.redirect_stderr(devnull):
+                import easyocr
+                self._reader = easyocr.Reader(['en', 'pt'], gpu=False)
             self._engine = 'easyocr'
             logger.info("Using EasyOCR engine")
         return self._reader
