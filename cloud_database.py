@@ -112,6 +112,19 @@ class PostgresRepository(IExpenseRepository):
                 cur.execute("ALTER TABLE expenses ADD CONSTRAINT expenses_user_id_local_id UNIQUE (user_id, local_id)")
             except Exception:
                 pass
+            # Backfill local_id for existing rows that have NULL
+            cur.execute("""
+                UPDATE expenses e
+                SET local_id = sub.new_id
+                FROM (
+                    SELECT id, ROW_NUMBER() OVER (
+                        PARTITION BY user_id ORDER BY id, date
+                    ) AS new_id
+                    FROM expenses
+                    WHERE local_id IS NULL
+                ) sub
+                WHERE e.id = sub.id AND e.local_id IS NULL
+            """)
             self.conn.commit()
 
     def _reset_conn(self):
