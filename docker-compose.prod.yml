@@ -6,11 +6,11 @@ services:
       - pgdata:/var/lib/postgresql/data
     environment:
       POSTGRES_USER: financialbot
-      POSTGRES_PASSWORD: finbot123
-      POSTGRES_DB: financial_bot
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?}
+      POSTGRES_DB: finbot
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U financialbot -d financial_bot"]
+      test: ["CMD-SHELL", "pg_isready -U financialbot -d finbot"]
       interval: 10s
       timeout: 5s
       retries: 5
