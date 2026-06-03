@@ -43,6 +43,7 @@ DATE_END_SELECTED = "Data de Fim escolhida: {date}"
 DATE_ALREADY_SELECTED_START = "Data de início já escolhida!"
 DATE_ALREADY_SELECTED_END = "Data de fim já escolhida!"
 DATE_SELECTED_CONFIRMATION = "Data selecionada!"
+DATE_FUTURE_NOT_ALLOWED = "❌ Data no futuro não permitida! Escolha uma data até hoje."
 DATE_PROCESSING_ERROR = "Erro ao processar a data."
 
 # Date Range Query Messages

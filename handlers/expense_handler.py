@@ -108,6 +108,12 @@ class ExpenseHandler(BaseHandler):
                 self.register_next_handler(message, self.process_date)
                 return
 
+        selected = datetime.strptime(date_str, "%d-%m-%Y")
+        if selected.date() > datetime.now().date():
+            self.send_error(message.chat.id, "❌ Data no futuro não permitida! Escolha uma data até hoje.")
+            self.register_next_handler(message, self.process_date)
+            return
+
         self.state.update_user_state(message.from_user.id, "date_despesa", date_str)
         self._ask_payment_method(message.chat.id)
 

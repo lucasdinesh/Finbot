@@ -557,6 +557,17 @@ class ReceiptHandler(BaseHandler):
                 self.bot.register_next_step_handler(msg, self._handle_edit_date)
                 return
 
+        selected = datetime.strptime(date_str, "%d-%m-%Y")
+        if selected.date() > datetime.now().date():
+            self.send_error(chat_id, "❌ Data no futuro não permitida! Escolha uma data até hoje.")
+            current_date = parsed.get("date") or "não identificada"
+            msg = self.bot.send_message(
+                chat_id, SCAN_EDIT_DATE.format(current=current_date),
+                parse_mode="Markdown",
+            )
+            self.bot.register_next_step_handler(msg, self._handle_edit_date)
+            return
+
         logger.info("Date accepted: %s", date_str)
         self.state.update_receipt_state(user_id, "parsed_data", {
             **parsed,

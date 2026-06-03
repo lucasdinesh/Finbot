@@ -9,7 +9,7 @@ from config import MAX_DATE_INTERVAL
 from messages import (
     DATE_SELECT_START, DATE_SELECT_END, DATE_START_SELECTED, DATE_END_SELECTED,
     DATE_ALREADY_SELECTED_START, DATE_ALREADY_SELECTED_END, 
-    DATE_SELECTED_CONFIRMATION, DATE_INTERVAL_TOO_LARGE,
+    DATE_SELECTED_CONFIRMATION, DATE_FUTURE_NOT_ALLOWED, DATE_INTERVAL_TOO_LARGE,
     DATE_RANGE_HEADER, DATE_RANGE_EXPENSE_FORMAT, DATE_RANGE_TOTAL, DATE_RANGE_NO_RESULTS
 )
 
@@ -100,11 +100,11 @@ class DateHandler(BaseHandler):
         
         # Parse selected day and format date
         day = int(callback.data[last_sep:])
-        selected_date = datetime(
-            int(saved_date[0]), 
-            int(saved_date[1]), 
-            day, 0, 0, 0
-        ).date().strftime("%d-%m-%Y")
+        selected_dt = datetime(int(saved_date[0]), int(saved_date[1]), day)
+        if selected_dt.date() > datetime.now().date():
+            self.bot.answer_callback_query(callback.id, text=DATE_FUTURE_NOT_ALLOWED)
+            return
+        selected_date = selected_dt.date().strftime("%d-%m-%Y")
         
         # Update state
         if calendar_type == "start":
