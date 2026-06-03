@@ -7,6 +7,19 @@ from typing import List, Optional
 # import firebase_admin  # Uncomment when implementing
 
 
+def _run_migration(conn, sql: str):
+    """Run a migration SQL in its own transaction, ignoring errors."""
+    import psycopg2
+    try:
+        conn.rollback()
+        with conn.cursor() as cur:
+            cur.execute(sql)
+        conn.commit()
+    except psycopg2.Error:
+        conn.rollback()
+        pass
+
+
 class PostgresRepository(IExpenseRepository):
     """
     PostgreSQL implementation of IExpenseRepository.
@@ -31,6 +44,9 @@ class PostgresRepository(IExpenseRepository):
 
     def _create_table(self) -> None:
         """Create tables if they don't exist."""
+        # Clear any aborted transaction from a prior failed connection
+        self._reset_conn()
+
         with self.conn.cursor() as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS expenses (
@@ -98,34 +114,44 @@ class PostgresRepository(IExpenseRepository):
                         "INSERT INTO categories (name, user_id) VALUES (%s, NULL) ON CONFLICT DO NOTHING",
                         (name,),
                     )
-            # Migrate existing tables
-            for table in ("expenses", "categories", "budgets", "savings_goals", "recurring_expenses"):
-                try:
-                    cur.execute(f"ALTER TABLE {table} ALTER COLUMN user_id TYPE BIGINT")
-                except Exception:
-                    pass
-            try:
-                cur.execute("ALTER TABLE expenses ADD COLUMN local_id INTEGER")
-            except Exception:
-                pass
-            try:
-                cur.execute("ALTER TABLE expenses ADD CONSTRAINT expenses_user_id_local_id UNIQUE (user_id, local_id)")
-            except Exception:
-                pass
-            # Backfill local_id for existing rows that have NULL
-            cur.execute("""
-                UPDATE expenses e
-                SET local_id = sub.new_id
-                FROM (
-                    SELECT id, ROW_NUMBER() OVER (
-                        PARTITION BY user_id ORDER BY id, date
-                    ) AS new_id
-                    FROM expenses
-                    WHERE local_id IS NULL
-                ) sub
-                WHERE e.id = sub.id AND e.local_id IS NULL
-            """)
             self.conn.commit()
+
+        # Migrations — each in its own transaction to avoid aborted-transaction cascade
+        _run_migration(self.conn, f"""
+            ALTER TABLE expenses ALTER COLUMN user_id TYPE BIGINT
+        """)
+        _run_migration(self.conn, f"""
+            ALTER TABLE categories ALTER COLUMN user_id TYPE BIGINT
+        """)
+        _run_migration(self.conn, f"""
+            ALTER TABLE budgets ALTER COLUMN user_id TYPE BIGINT
+        """)
+        _run_migration(self.conn, f"""
+            ALTER TABLE savings_goals ALTER COLUMN user_id TYPE BIGINT
+        """)
+        _run_migration(self.conn, f"""
+            ALTER TABLE recurring_expenses ALTER COLUMN user_id TYPE BIGINT
+        """)
+        _run_migration(self.conn, """
+            ALTER TABLE expenses ADD COLUMN IF NOT EXISTS local_id INTEGER
+        """)
+        # Add UNIQUE constraint; IF NOT NOT EXISTS not supported for constraints pre-PG13
+        _run_migration(self.conn, """
+            ALTER TABLE expenses ADD CONSTRAINT expenses_user_id_local_id UNIQUE (user_id, local_id)
+        """)
+        # Backfill local_id for existing rows that have NULL
+        _run_migration(self.conn, """
+            UPDATE expenses e
+            SET local_id = sub.new_id
+            FROM (
+                SELECT id, ROW_NUMBER() OVER (
+                    PARTITION BY user_id ORDER BY id, date
+                ) AS new_id
+                FROM expenses
+                WHERE local_id IS NULL
+            ) sub
+            WHERE e.id = sub.id AND e.local_id IS NULL
+        """)
 
     def _reset_conn(self):
         """Rollback any aborted transaction so the connection is usable again."""
