@@ -1,6 +1,10 @@
 """OCR service for receipt text extraction using EasyOCR."""
+import json
 import logging
 import os
+import time
+import uuid
+from datetime import datetime
 from threading import Lock
 from typing import List, Tuple
 
@@ -91,14 +95,17 @@ class OcrService:
         if sharpness < 40:
             start_variant = "CLAHE"
             threshold = 0.50
+            heuristic_reason = "low_sharpness"
             logger.info("Heuristic: low sharpness -> start with CLAHE, threshold=0.50")
         elif brightness < 80:
             start_variant = "grayscale"
             threshold = 0.50
+            heuristic_reason = "low_brightness"
             logger.info("Heuristic: low brightness -> start with grayscale, threshold=0.50")
         else:
             start_variant = "grayscale"
             threshold = 0.70
+            heuristic_reason = "clean_image"
             logger.info("Heuristic: clean image -> start with grayscale, threshold=0.70")
 
         # Define preprocessing variants
@@ -153,9 +160,14 @@ class OcrService:
 
         base_reader = self._get_reader()
 
+        # Per-variant metrics collection
+        run_id = uuid.uuid4().hex[:8]
+        per_variant_metrics = {}
+
         for name in ordered:
             prep_func = variant_map[name][1]
             logger.info("Trying OCR variant: %s", name)
+            variant_start = time.time()
             try:
                 prep_img = prep_func(img)
             except Exception as e:
@@ -167,6 +179,8 @@ class OcrService:
             except Exception as exc:
                 logger.warning("EasyOCR inference failed for variant %s: %s", name, exc)
                 continue
+
+            elapsed = time.time() - variant_start
 
             extracted = []
             for item in results:
@@ -193,6 +207,16 @@ class OcrService:
 
             score = avg_conf
 
+            per_variant_metrics[name] = {
+                "num_lines": len(extracted),
+                "avg_confidence": round(avg_conf, 4),
+                "time_seconds": round(elapsed, 3),
+                "texts": [t for t, _ in extracted],
+                "confidences": [round(c, 4) for _, c in extracted],
+                "score": round(score, 4),
+                "threshold_met": score >= threshold,
+            }
+
             if score > best_score:
                 best_score = score
                 best_results = extracted
@@ -211,6 +235,40 @@ class OcrService:
         logger.info("Total OCR lines extracted: %d", len(best_results))
         for text, conf in best_results:
             logger.info("OCR LINE | conf=%.4f | %s", conf, text)
+
+        # Write per-variant metrics to disk
+        metrics = {
+            "run_id": run_id,
+            "timestamp": datetime.now().isoformat(),
+            "image": {
+                "width": w,
+                "height": h,
+                "brightness": round(float(brightness), 1),
+                "contrast": round(float(contrast), 1),
+                "sharpness": round(float(sharpness), 1),
+            },
+            "heuristic": {
+                "start_variant": start_variant,
+                "threshold": threshold,
+                "reason": heuristic_reason,
+            },
+            "variants": per_variant_metrics,
+            "selected": {
+                "variant": best_variant_name,
+                "score": round(best_score, 4),
+                "num_lines": len(best_results),
+            },
+        }
+        try:
+            metrics_dir = "ocr_metrics"
+            os.makedirs(metrics_dir, exist_ok=True)
+            fname = f"{metrics_dir}/{run_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            with open(fname, "w", encoding="utf-8") as f:
+                json.dump(metrics, f, indent=2, ensure_ascii=False)
+            logger.info("OCR metrics written to %s", fname)
+        except Exception as e:
+            logger.warning("Failed to write OCR metrics: %s", e)
+
         return best_results
 
     # ------------------------------------------------------------------

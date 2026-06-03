@@ -162,18 +162,32 @@ class PostgresRepository(IExpenseRepository):
         if not required_fields.issubset(kwargs.keys()):
             raise ValueError(f"Must provide: {required_fields}")
 
-        date = kwargs.get('date', datetime.now().strftime('%d-%m-%Y'))
+        raw_date = kwargs.get('date', datetime.now().strftime('%d-%m-%Y'))
+        parts = raw_date.split('-')
+        if len(parts) == 3 and len(parts[2]) == 4:
+            iso_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
+        else:
+            iso_date = raw_date
 
         with self.conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO expenses (user_id, name, amount, installment, date) VALUES (%s, %s, %s, %s, %s)",
-                (kwargs['user_id'], kwargs['name'], kwargs['amount'], kwargs['installment'], date)
+                (kwargs['user_id'], kwargs['name'], kwargs['amount'], kwargs['installment'], iso_date)
             )
             self.conn.commit()
 
     def update(self, id: int, **kwargs: object) -> None:
         """Update an expense."""
-        update_fields = {key: kwargs[key] for key in ['name', 'amount', 'installment', 'date'] if key in kwargs}
+        update_fields = {}
+        for key in ['name', 'amount', 'installment', 'date']:
+            if key not in kwargs:
+                continue
+            val = kwargs[key]
+            if key == 'date' and isinstance(val, str):
+                parts = val.split('-')
+                if len(parts) == 3 and len(parts[2]) == 4:
+                    val = f"{parts[2]}-{parts[1]}-{parts[0]}"
+            update_fields[key] = val
 
         if not update_fields:
             raise ValueError("Must provide at least one field to update")

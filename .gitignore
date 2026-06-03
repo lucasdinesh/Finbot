@@ -5,3 +5,4 @@ __pycache__/
 *.png
 finance.db
 .env
+ocr_metrics/

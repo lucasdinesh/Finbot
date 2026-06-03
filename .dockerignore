@@ -8,3 +8,4 @@ finance.db
 *.jpg
 *.png
 logs/
+ocr_metrics/
