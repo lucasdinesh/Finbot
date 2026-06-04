@@ -139,18 +139,23 @@ class PostgresRepository(IExpenseRepository):
         _run_migration(self.conn, """
             ALTER TABLE expenses ADD CONSTRAINT expenses_user_id_local_id UNIQUE (user_id, local_id)
         """)
-        # Backfill local_id for existing rows that have NULL
+        # Backfill local_id for existing rows that have NULL or 0
         _run_migration(self.conn, """
             UPDATE expenses e
-            SET local_id = sub.new_id
+            SET local_id = base.start_at + base.rn
             FROM (
-                SELECT id, ROW_NUMBER() OVER (
-                    PARTITION BY user_id ORDER BY id, date
-                ) AS new_id
-                FROM expenses
-                WHERE local_id IS NULL
-            ) sub
-            WHERE e.id = sub.id AND e.local_id IS NULL
+                SELECT e2.id,
+                       COALESCE(m.max_local, 0) AS start_at,
+                       ROW_NUMBER() OVER (PARTITION BY e2.user_id ORDER BY e2.id, e2.date) AS rn
+                FROM expenses e2
+                LEFT JOIN (
+                    SELECT user_id, MAX(local_id) AS max_local
+                    FROM expenses WHERE local_id IS NOT NULL AND local_id > 0
+                    GROUP BY user_id
+                ) m ON m.user_id = e2.user_id
+                WHERE e2.local_id IS NULL OR e2.local_id = 0
+            ) base
+            WHERE e.id = base.id AND (e.local_id IS NULL OR e.local_id = 0)
         """)
 
     def _reset_conn(self):
