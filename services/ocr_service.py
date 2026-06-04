@@ -1,5 +1,6 @@
 """OCR service for receipt text extraction using EasyOCR."""
 import concurrent.futures
+import gc
 import json
 import logging
 import os
@@ -11,8 +12,8 @@ from threading import Lock
 from typing import List, Tuple
 
 os.environ["TQDM_DISABLE"] = "1"
-os.environ["OMP_NUM_THREADS"] = "4"
-os.environ["MKL_NUM_THREADS"] = "4"
+os.environ["OMP_NUM_THREADS"] = "2"
+os.environ["MKL_NUM_THREADS"] = "2"
 warnings.filterwarnings("ignore", message="Could not initialize NNPACK")
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ class OcrService:
                     cls._instance._reader = None
                     cls._instance._engine = None
                     cls._instance._llm_service = None
+                    cls._instance._ocr_lock = Lock()
         return cls._instance
 
     @property
@@ -81,6 +83,10 @@ class OcrService:
 
         Returns a list of (text, confidence) tuples sorted top-to-bottom.
         """
+        with self._ocr_lock:
+            return self._extract_text_locked(image_bytes)
+
+    def _extract_text_locked(self, image_bytes: bytes) -> List[Tuple[float, float]]:
         import numpy as np
         import cv2
 
@@ -91,9 +97,9 @@ class OcrService:
             return []
 
         h, w = img.shape[:2]
-        if w > 1280:
-            scale = 1280.0 / w
-            new_w, new_h = 1280, int(h * scale)
+        if w > 960:
+            scale = 960.0 / w
+            new_w, new_h = 960, int(h * scale)
             img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
             logger.info("Downscaled image from %dx%d to %dx%d", w, h, new_w, new_h)
             h, w = new_h, new_w
@@ -161,24 +167,21 @@ class OcrService:
             return name, extracted, elapsed, None
 
         per_variant = {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-            fut_map = {pool.submit(run_variant, n): n for n in preprocessed}
-            for fut in concurrent.futures.as_completed(fut_map):
-                name, extracted, elapsed, error = fut.result()
-                score = sum(c for _, c in extracted) / len(extracted) if extracted else 0.0
-                per_variant[name] = {
-                    "extracted": extracted,
-                    "score": score,
-                    "time": round(elapsed, 3),
-                    "error": error,
-                }
-                if error:
-                    logger.warning("Variant %s errored: %s", name, error)
-                else:
-                    logger.info("Variant %s: %d lines, score=%.4f, time=%.1fs",
-                                name, len(extracted), score, elapsed)
+        for name in preprocessed:
+            _, extracted, elapsed, error = run_variant(name)
+            score = sum(c for _, c in extracted) / len(extracted) if extracted else 0.0
+            per_variant[name] = {
+                "extracted": extracted,
+                "score": score,
+                "time": round(elapsed, 3),
+                "error": error,
+            }
+            if error:
+                logger.warning("Variant %s errored: %s", name, error)
+            else:
+                logger.info("Variant %s: %d lines, score=%.4f, time=%.1fs",
+                            name, len(extracted), score, elapsed)
 
-        # Pick the best by average confidence
         valid = {n: d for n, d in per_variant.items() if d["error"] is None}
         if not valid:
             logger.warning("All variants failed; returning empty list")
@@ -189,6 +192,9 @@ class OcrService:
         logger.info("Selected variant: %s (score=%.4f)", best_name, best["score"])
         for text, conf in best["extracted"]:
             logger.info("OCR LINE | conf=%.4f | %s", conf, text)
+
+        # Free memory from the non-selected variant
+        gc.collect()
 
         # Write metrics
         metrics = {
