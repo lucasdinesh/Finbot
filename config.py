@@ -38,7 +38,7 @@ LLM_USER_PROMPT: Final = os.getenv("LLM_USER_PROMPT") or (
     "   Ignore subtotais e valores parciais.\n\n"
     "2. Data da compra (formato DD-MM-YYYY).\n\n"
      "3. Nome do estabelecimento.\n"
-     "   - Geralmente está nas primeiras 2-4 linhas do texto.\n"
+     "   - Geralmente está nas primeiras 1-5 linhas do texto.\n"
      "   - Se for comprovante de maquininha de cartão (SiTef, "
      "Cielo, Rede, GetNet), o nome do estabelecimento está "
      "no topo, antes do CNPJ. Exemplo: se as primeiras linhas "
