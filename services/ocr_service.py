@@ -1,4 +1,5 @@
 """OCR service for receipt text extraction using EasyOCR."""
+import concurrent.futures
 import json
 import logging
 import os
@@ -75,7 +76,8 @@ class OcrService:
 
     def extract_text(self, image_bytes: bytes) -> List[Tuple[float, float]]:
         """
-        Run OCR on raw image bytes using adaptive C=25 preprocessing.
+        Run OCR on raw image bytes, trying grayscale and adaptive C=25
+        preprocessing in parallel, picking the best result.
 
         Returns a list of (text, confidence) tuples sorted top-to-bottom.
         """
@@ -105,57 +107,105 @@ class OcrService:
 
         base_reader = self._get_reader()
 
-        # Preprocess with adaptive C=25
-        prep_img = cv2.adaptiveThreshold(
-            gray, 255,
-            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY,
-            blockSize=31,
-            C=25,
-        )
-        logger.info("Preprocessed with adaptive C=25")
+        # Preprocess variants: grayscale and adaptive C=25
+        def make_grayscale(im):
+            return cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
 
-        ocr_start = time.time()
-        try:
-            r_fd = os.dup(2)
-            n_fd = os.open(os.devnull, os.O_RDWR)
-            os.dup2(n_fd, 2)
+        def make_adaptive_c25(im):
+            g = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+            return cv2.adaptiveThreshold(
+                g, 255,
+                cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY,
+                blockSize=31, C=25,
+            )
+
+        variant_map = {
+            "grayscale": make_grayscale,
+            "adaptive C=25": make_adaptive_c25,
+        }
+
+        preprocessed = {}
+        for name, func in variant_map.items():
             try:
-                results = base_reader.readtext(prep_img)
-            finally:
-                os.dup2(r_fd, 2)
-                os.close(n_fd)
-                os.close(r_fd)
-        except Exception as exc:
-            logger.error("OCR failed: %s", exc)
+                preprocessed[name] = func(img)
+                logger.info("Preprocessed variant: %s", name)
+            except Exception as e:
+                logger.warning("Variant %s failed: %s", name, e)
+
+        if not preprocessed:
+            logger.warning("All variants failed")
             return []
 
-        elapsed = time.time() - ocr_start
-        extracted = []
-        for item in results:
-            if len(item) == 3:
-                _bbox, text, confidence = item
-            else:
-                _bbox, text = item
-                confidence = 1.0
-            text = text.strip()
-            if text:
-                extracted.append((text, confidence))
+        def run_variant(name):
+            start = time.time()
+            try:
+                r_fd = os.dup(2)
+                n_fd = os.open(os.devnull, os.O_RDWR)
+                os.dup2(n_fd, 2)
+                try:
+                    results = base_reader.readtext(preprocessed[name])
+                finally:
+                    os.dup2(r_fd, 2)
+                    os.close(n_fd)
+                    os.close(r_fd)
+            except Exception as exc:
+                return name, None, time.time() - start, str(exc)
+            elapsed = time.time() - start
+            extracted = []
+            for item in results:
+                _, text, conf = item if len(item) == 3 else (*item, 1.0)
+                text = text.strip()
+                if text:
+                    extracted.append((text, conf))
+            return name, extracted, elapsed, None
 
-        avg_conf = sum(c for _, c in extracted) / len(extracted) if extracted else 0.0
-        logger.info("OCR found %d lines (avg confidence=%.4f, time=%.1fs)",
-                     len(extracted), avg_conf, elapsed)
-        for text, conf in extracted:
+        per_variant = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            fut_map = {pool.submit(run_variant, n): n for n in preprocessed}
+            for fut in concurrent.futures.as_completed(fut_map):
+                name, extracted, elapsed, error = fut.result()
+                score = sum(c for _, c in extracted) / len(extracted) if extracted else 0.0
+                per_variant[name] = {
+                    "extracted": extracted,
+                    "score": score,
+                    "time": round(elapsed, 3),
+                    "error": error,
+                }
+                if error:
+                    logger.warning("Variant %s errored: %s", name, error)
+                else:
+                    logger.info("Variant %s: %d lines, score=%.4f, time=%.1fs",
+                                name, len(extracted), score, elapsed)
+
+        # Pick the best by average confidence
+        valid = {n: d for n, d in per_variant.items() if d["error"] is None}
+        if not valid:
+            logger.warning("All variants failed; returning empty list")
+            return []
+
+        best_name = max(valid, key=lambda n: valid[n]["score"])
+        best = valid[best_name]
+        logger.info("Selected variant: %s (score=%.4f)", best_name, best["score"])
+        for text, conf in best["extracted"]:
             logger.info("OCR LINE | conf=%.4f | %s", conf, text)
 
-        # Write OCR metrics to disk
+        # Write metrics
         metrics = {
             "timestamp": datetime.now().isoformat(),
             "image": {"width": w, "height": h},
-            "variant": "adaptive C=25",
-            "num_lines": len(extracted),
-            "avg_confidence": round(avg_conf, 4),
-            "time_seconds": round(elapsed, 3),
+            "selected": best_name,
+            "selected_score": best["score"],
+            "selected_lines": len(best["extracted"]),
+            "variants": {
+                n: {
+                    "score": d["score"],
+                    "lines": len(d.get("extracted", [])),
+                    "time_seconds": d["time"],
+                    "error": d.get("error"),
+                }
+                for n, d in per_variant.items()
+            },
         }
         try:
             metrics_dir = "ocr_metrics"
@@ -167,7 +217,7 @@ class OcrService:
         except Exception as e:
             logger.warning("Failed to write OCR metrics: %s", e)
 
-        return extracted
+        return best["extracted"]
 
     # ------------------------------------------------------------------
     # Receipt parsing
