@@ -10,8 +10,8 @@ from threading import Lock
 from typing import List, Tuple
 
 os.environ["TQDM_DISABLE"] = "1"
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "4"
+os.environ["MKL_NUM_THREADS"] = "4"
 warnings.filterwarnings("ignore", message="Could not initialize NNPACK")
 
 logger = logging.getLogger(__name__)
