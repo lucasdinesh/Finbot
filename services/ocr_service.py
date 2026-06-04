@@ -52,11 +52,11 @@ class OcrService:
             if self._reader is not None:
                 return self._reader
 
-            import easyocr
             old_fd = os.dup(2)
             devnull_fd = os.open(os.devnull, os.O_RDWR)
             os.dup2(devnull_fd, 2)
             try:
+                import easyocr
                 self._reader = easyocr.Reader(['en', 'pt'], gpu=False)
             finally:
                 os.dup2(old_fd, 2)
@@ -190,7 +190,15 @@ class OcrService:
             prep_img = preprocessed[name]
             start = time.time()
             try:
-                results = base_reader.readtext(prep_img)
+                r_fd = os.dup(2)
+                n_fd = os.open(os.devnull, os.O_RDWR)
+                os.dup2(n_fd, 2)
+                try:
+                    results = base_reader.readtext(prep_img)
+                finally:
+                    os.dup2(r_fd, 2)
+                    os.close(n_fd)
+                    os.close(r_fd)
             except Exception as exc:
                 return name, None, time.time() - start, str(exc)
             elapsed = time.time() - start
