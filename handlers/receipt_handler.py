@@ -19,7 +19,7 @@ from messages import (
     ADD_CATEGORY_PROMPT, ADD_CATEGORY_CUSTOM_PROMPT, CATEGORY_OTHER,
 )
 from utils.validators import ExpenseValidator
-from telebot import types, formatting
+from telebot import types
 
 
 class ReceiptHandler(BaseHandler):
@@ -155,7 +155,7 @@ class ReceiptHandler(BaseHandler):
             return
 
         text = SCAN_CONFIRM.format(
-            store_name=formatting.escape_markdown(parsed["store_name"] or "Não identificado"),
+            store_name=parsed["store_name"] or "Não identificado",
             amount=parsed["amount"],
             date=parsed["date"] or "Não identificada",
         )
@@ -245,7 +245,7 @@ class ReceiptHandler(BaseHandler):
             self.bot.edit_message_reply_markup(chat_id, call.message.message_id,
                                                reply_markup=None)
             self.state.update_receipt_state(user_id, "step", "editing_name")
-            current_name = formatting.escape_markdown(parsed.get("store_name") or "Despesa")
+            current_name = str(parsed.get("store_name") or "Despesa")
             msg = self.bot.send_message(
                 chat_id, SCAN_EDIT_NAME.format(current=current_name),
                 parse_mode="Markdown",
@@ -511,7 +511,7 @@ class ReceiptHandler(BaseHandler):
         if not name:
             logger.warning("Empty name submitted")
             self.send_error(chat_id, NAME_EMPTY)
-            current_name = formatting.escape_markdown(parsed.get("store_name") or "Despesa")
+            current_name = str(parsed.get("store_name") or "Despesa")
             msg = self.bot.send_message(
                 chat_id, SCAN_EDIT_NAME.format(current=current_name),
                 parse_mode="Markdown",
