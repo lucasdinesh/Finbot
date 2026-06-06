@@ -391,6 +391,15 @@ def handle_receipt_payment_callback(call):
         logging.getLogger("financialbot").error("handle_receipt_payment_callback crashed", exc_info=True)
 
 
+@bot.callback_query_handler(func=lambda call: call.data.startswith('RCINST_'))
+def handle_receipt_installment_callback(call):
+    """Handle installment selection in receipt flow."""
+    try:
+        receipt_handler.handle_receipt_installment_callback(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_receipt_installment_callback crashed", exc_info=True)
+
+
 @bot.callback_query_handler(func=lambda call: call.data.startswith('RCCAT_'))
 def handle_receipt_category_callback(call):
     """Handle category selection in receipt flow."""
@@ -407,6 +416,15 @@ def handle_payment_callback(call):
         expense_handler.handle_payment_callback(call)
     except Exception:
         logging.getLogger("financialbot").error("handle_payment_callback crashed", exc_info=True)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('INST_'))
+def handle_installment_callback(call):
+    """Handle installment selection in expense flow."""
+    try:
+        expense_handler.handle_installment_callback(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_installment_callback crashed", exc_info=True)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('CATEGORY'))

@@ -15,7 +15,7 @@ from messages import (
     SCAN_NO_AMOUNT, ADD_SUCCESS, VALUE_INVALID, VALUE_MUST_BE_POSITIVE,
     NAME_EMPTY, NAME_TOO_LONG, NAME_NOT_ALPHANUMERIC,
     DATE_NOT_SPECIFIED,
-    INSTALLMENTS_INVALID, INSTALLMENTS_TOO_LARGE,
+    INSTALLMENTS_INVALID, INSTALLMENTS_TOO_LARGE, INSTALLMENTS_PROMPT_MORE, ADD_INSTALLMENTS_PROMPT,
     ADD_PAYMENT_PROMPT, PAYMENT_PIX, PAYMENT_DINHEIRO, PAYMENT_CREDITO,
     ADD_CATEGORY_PROMPT, ADD_CATEGORY_CUSTOM_PROMPT, CATEGORY_OTHER,
 )
@@ -340,8 +340,7 @@ class ReceiptHandler(BaseHandler):
 
         if payment_method == "credito":
             self.state.update_receipt_state(user_id, "step", "awaiting_installments")
-            msg = self.bot.send_message(chat_id, "Quantas parcelas? (1-1000):")
-            self.register_next_handler(msg, self._handle_receipt_installments)
+            self._ask_receipt_installments(chat_id, user_id)
             self.bot.answer_callback_query(call.id)
             return
         else:
@@ -350,6 +349,32 @@ class ReceiptHandler(BaseHandler):
                 "installments": 1,
             })
 
+        self._ask_receipt_category(chat_id, user_id)
+        self.bot.answer_callback_query(call.id)
+
+    def _ask_receipt_installments(self, chat_id: int, user_id: int) -> None:
+        """Show installment inline buttons (1-12) + text fallback in receipt flow."""
+        keyboard = types.InlineKeyboardMarkup(row_width=6)
+        keyboard.add(*[
+            types.InlineKeyboardButton(str(i), callback_data=f"RCINST_{i}")
+            for i in range(1, 13)
+        ])
+        self.bot.send_message(chat_id, ADD_INSTALLMENTS_PROMPT, reply_markup=keyboard)
+        msg = self.bot.send_message(chat_id, INSTALLMENTS_PROMPT_MORE)
+        self.register_next_handler(msg, self._handle_receipt_installments)
+
+    def handle_receipt_installment_callback(self, call) -> None:
+        """Handle installment button selection in receipt flow."""
+        user_id = call.from_user.id
+        chat_id = call.message.chat.id
+        receipt_state = self.state.get_receipt_state(user_id)
+        parsed = receipt_state.get("parsed_data", {}) if receipt_state else {}
+        installment = int(call.data.split("_")[1])
+        self.state.update_receipt_state(user_id, "parsed_data", {
+            **parsed,
+            "installments": installment,
+        })
+        self.bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=None)
         self._ask_receipt_category(chat_id, user_id)
         self.bot.answer_callback_query(call.id)
 
@@ -366,8 +391,7 @@ class ReceiptHandler(BaseHandler):
         is_valid, installments, error_key = self.validator.validate_installments(self._get_text(message))
         if not is_valid:
             self.send_error(chat_id, self._ERROR_MAP.get(error_key, "Número de parcelas inválido"))
-            msg = self.bot.send_message(chat_id, "Quantas parcelas? (1-1000):")
-            self.register_next_handler(msg, self._handle_receipt_installments)
+            self._ask_receipt_installments(chat_id, user_id)
             return
 
         self.state.update_receipt_state(user_id, "parsed_data", {

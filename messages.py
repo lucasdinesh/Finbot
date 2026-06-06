@@ -32,9 +32,10 @@ NAME_EMPTY = "❌ Nome da despesa não pode estar vazio! Por favor, insira um no
 NAME_TOO_LONG = "❌ Nome muito longo! Use no máximo 50 caracteres.\n_(Digite 'cancelar' para sair)_"
 NAME_NOT_ALPHANUMERIC = "❌ Nome deve conter apenas letras e números! Por favor, insira um nome válido.\n_(Digite 'cancelar' para sair)_"
 # Installments Validation Messages
-ADD_INSTALLMENTS_PROMPT = "Quantas parcelas? (1-1000):"
+ADD_INSTALLMENTS_PROMPT = "Quantas parcelas?"
 INSTALLMENTS_INVALID = "❌ Número de parcelas inválido! Por favor, insira um número inteiro positivo.\n_(Digite 'cancelar' para sair)_"
-INSTALLMENTS_TOO_LARGE = "❌ Número de parcelas não pode ser maior que 1000! Por favor, insira um valor válido.\n_(Digite 'cancelar' para sair)_"
+INSTALLMENTS_TOO_LARGE = "❌ Parcelas não podem ultrapassar o valor 1000! Digite um número entre 1 e 1000.\n_(Digite 'cancelar' para sair)_"
+INSTALLMENTS_PROMPT_MORE = "📝 Para mais parcelas, digite o valor desejado:"
 
 # Date Selection Messages
 DATE_SELECT_START = "Escolha uma data de inicio:"

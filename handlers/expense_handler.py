@@ -12,7 +12,7 @@ from messages import (
     ADD_CATEGORY_PROMPT, ADD_CATEGORY_CUSTOM_PROMPT, CATEGORY_OTHER,
     VALUE_INVALID, VALUE_MUST_BE_POSITIVE, NAME_EMPTY, NAME_TOO_LONG,
     NAME_NOT_ALPHANUMERIC,
-    INSTALLMENTS_INVALID, INSTALLMENTS_TOO_LARGE,
+    INSTALLMENTS_INVALID, INSTALLMENTS_TOO_LARGE, INSTALLMENTS_PROMPT_MORE,
     DELETE_PROMPT, DELETE_ID_INVALID, DELETE_NOT_FOUND,
     DELETE_CONFIRM_PROMPT, DELETE_SUCCESS, DELETE_CANCELLED,
     SEARCH_PROMPT, SEARCH_NO_RESULTS, SEARCH_RESULT_FORMAT,
@@ -143,12 +143,32 @@ class ExpenseHandler(BaseHandler):
 
         if payment_method == "credito":
             self.state.update_user_state(user_id, "installment", None)
-            msg = self.bot.send_message(chat_id, ADD_INSTALLMENTS_PROMPT)
-            self.register_next_handler(msg, self.process_installments)
+            self._ask_installments(chat_id, user_id)
         else:
             self.state.update_user_state(user_id, "installment", "1")
             self._ask_category(chat_id, user_id)
 
+        self.bot.answer_callback_query(call.id)
+
+    def _ask_installments(self, chat_id: int, user_id: int) -> None:
+        """Show installment inline buttons (1-12) + text fallback."""
+        keyboard = types.InlineKeyboardMarkup(row_width=6)
+        keyboard.add(*[
+            types.InlineKeyboardButton(str(i), callback_data=f"INST_{i}")
+            for i in range(1, 13)
+        ])
+        self.bot.send_message(chat_id, ADD_INSTALLMENTS_PROMPT, reply_markup=keyboard)
+        msg = self.bot.send_message(chat_id, INSTALLMENTS_PROMPT_MORE)
+        self.register_next_handler(msg, self.process_installments)
+
+    def handle_installment_callback(self, call) -> None:
+        """Handle installment button selection in expense flow."""
+        user_id = call.from_user.id
+        chat_id = call.message.chat.id
+        installment = int(call.data.split("_")[1])
+        self.state.update_user_state(user_id, "installment", str(installment))
+        self.bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=None)
+        self._ask_category(chat_id, user_id)
         self.bot.answer_callback_query(call.id)
 
     def process_installments(self, message) -> None:
@@ -161,7 +181,7 @@ class ExpenseHandler(BaseHandler):
         is_valid, parcelas, error_key = self.validator.validate_installments(parcelas_str)
         if not is_valid:
             self.send_error(message.chat.id, ERROR_MESSAGES.get(error_key, "Invalid input"))
-            self.register_next_handler(message, self.process_installments)
+            self._ask_installments(message.chat.id, message.from_user.id)
             return
 
         self.state.update_user_state(message.from_user.id, "installment", str(parcelas))
