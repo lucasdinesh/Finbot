@@ -493,6 +493,27 @@ class ExpenseHandler(BaseHandler):
             self.bot.answer_callback_query(call.id)
             return
 
+        if field.startswith("EDIT_CAT_"):
+            if field == "EDIT_CAT_OTHER":
+                self.bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=None)
+                self.state.update_user_state(user_id, "edit_field", "EDIT_CATEGORY")
+                msg = self.bot.send_message(chat_id, ADD_CATEGORY_CUSTOM_PROMPT)
+                self.register_next_handler(msg, self.process_edit_value)
+                self.bot.answer_callback_query(call.id)
+                return
+            category_id = int(field.replace("EDIT_CAT_", ""))
+            self.bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=None)
+            expense_id = self.state.get_user_state(user_id).get("edit_expense_id")
+            if expense_id:
+                try:
+                    self.expense_service.update_expense(expense_id, category_id=category_id)
+                    self.send_success(chat_id, EDIT_SUCCESS)
+                except Exception as e:
+                    self.send_error(chat_id, f"❌ Erro ao editar: {str(e)[:100]}")
+            self.state.clear_user_state(user_id)
+            self.bot.answer_callback_query(call.id)
+            return
+
         field_map = {
             "EDIT_VALUE": "valor",
             "EDIT_NAME": "nome",
@@ -510,6 +531,8 @@ class ExpenseHandler(BaseHandler):
 
         if field == "EDIT_PAYMENT":
             self._ask_edit_payment(chat_id, user_id)
+        elif field == "EDIT_CATEGORY":
+            self._ask_edit_category(chat_id, user_id)
         else:
             expense_id = self.state.get_user_state(user_id).get("edit_expense_id")
             current_value = ""
@@ -551,6 +574,19 @@ class ExpenseHandler(BaseHandler):
         )
         self.state.update_user_state(user_id, "edit_field", "EDIT_PAYMENT")
         self.bot.send_message(chat_id, ADD_PAYMENT_PROMPT, reply_markup=keyboard)
+
+    def _ask_edit_category(self, chat_id: int, user_id: int) -> None:
+        """Show category inline buttons during edit."""
+        categories = self.expense_service.get_categories(user_id)
+        keyboard = types.InlineKeyboardMarkup(row_width=2)
+        for cat_id, cat_name in categories:
+            keyboard.add(
+                types.InlineKeyboardButton(cat_name, callback_data=f"EDIT_CAT_{cat_id}")
+            )
+        keyboard.add(
+            types.InlineKeyboardButton(CATEGORY_OTHER, callback_data="EDIT_CAT_OTHER")
+        )
+        self.bot.send_message(chat_id, ADD_CATEGORY_PROMPT, reply_markup=keyboard)
 
     def _save_edit_payment(self, chat_id: int, user_id: int, payment_method: str) -> None:
         """Save payment method edit and finish."""
