@@ -8,6 +8,11 @@ from messages import (
     NO_BUDGETS, BUDGET_SELECT_CATEGORY, ADD_CATEGORY_CUSTOM_PROMPT,
     BUDGET_OVER, VALUE_INVALID, VALUE_MUST_BE_POSITIVE,
 )
+
+ERROR_MESSAGES = {
+    "VALUE_INVALID": VALUE_INVALID,
+    "VALUE_MUST_BE_POSITIVE": VALUE_MUST_BE_POSITIVE,
+}
 from utils.validators import ExpenseValidator
 
 
@@ -48,14 +53,14 @@ class BudgetHandler(BaseHandler):
     def process_budget_value(self, message) -> None:
         chat_id = message.chat.id
         user_id = message.from_user.id
-        value_str = message.text.strip()
+        value_str = self._get_text(message)
 
         if self.is_cancel_command(value_str):
             return self.handle_cancel(chat_id)
 
         is_valid, value, error_key = self.validator.validate_value(value_str)
         if not is_valid:
-            self.send_error(chat_id, VALUE_INVALID)
+            self.send_error(chat_id, ERROR_MESSAGES.get(error_key, VALUE_INVALID))
             self.register_next_handler(message, self.process_budget_value)
             return
 

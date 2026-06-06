@@ -151,8 +151,9 @@ class DateHandler(BaseHandler):
             
             # Check if interval exceeds max months
             months_diff = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
-            
-            if months_diff > MAX_DATE_INTERVAL:
+            day_diff = end_date.day - start_date.day
+
+            if months_diff > MAX_DATE_INTERVAL or (months_diff == MAX_DATE_INTERVAL and day_diff > 0):
                 error_msg = DATE_INTERVAL_TOO_LARGE.format(max_months=MAX_DATE_INTERVAL)
                 self.send_error(chat_id, error_msg)
                 self.state.clear_date_selection(chat_id)

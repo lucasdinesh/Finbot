@@ -55,7 +55,11 @@ class OcrService:
                 return self._reader
 
             old_fd = os.dup(2)
-            devnull_fd = os.open(os.devnull, os.O_RDWR)
+            try:
+                devnull_fd = os.open(os.devnull, os.O_RDWR)
+            except OSError:
+                os.close(old_fd)
+                raise
             os.dup2(devnull_fd, 2)
             try:
                 import easyocr
@@ -147,7 +151,11 @@ class OcrService:
             start = time.time()
             try:
                 r_fd = os.dup(2)
-                n_fd = os.open(os.devnull, os.O_RDWR)
+                try:
+                    n_fd = os.open(os.devnull, os.O_RDWR)
+                except OSError:
+                    os.close(r_fd)
+                    raise
                 os.dup2(n_fd, 2)
                 try:
                     results = base_reader.readtext(preprocessed[name])

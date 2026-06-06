@@ -113,6 +113,7 @@ class LocalRepository(IExpenseRepository):
             installment=row[5],
             category_id=row[6] if len(row) > 6 else None,
             payment_method=row[7] if len(row) > 7 else None,
+            local_id=row[8] if len(row) > 8 else None,
         )
 
     def get(self, id: int) -> Expenses:

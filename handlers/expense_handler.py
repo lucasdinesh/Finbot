@@ -58,7 +58,7 @@ class ExpenseHandler(BaseHandler):
 
     def process_value(self, message) -> None:
         """Step 2: Validate and process expense value."""
-        valor_str = message.text.strip()
+        valor_str = self._get_text(message)
 
         if self.is_cancel_command(valor_str):
             return self.handle_cancel(message.chat.id)
@@ -75,7 +75,7 @@ class ExpenseHandler(BaseHandler):
 
     def process_name(self, message) -> None:
         """Step 3: Validate and process expense name."""
-        name = message.text.strip()
+        name = self._get_text(message)
 
         if self.is_cancel_command(name):
             return self.handle_cancel(message.chat.id)
@@ -95,7 +95,7 @@ class ExpenseHandler(BaseHandler):
     def process_date(self, message) -> None:
         """Step 4: Validate date, then ask payment method."""
         from datetime import datetime
-        date_str = message.text.strip()
+        date_str = self._get_text(message)
 
         if self.is_cancel_command(date_str):
             return self.handle_cancel(message.chat.id)
@@ -153,7 +153,7 @@ class ExpenseHandler(BaseHandler):
 
     def process_installments(self, message) -> None:
         """Validate installments, then go to category selection."""
-        parcelas_str = message.text.strip()
+        parcelas_str = self._get_text(message)
 
         if self.is_cancel_command(parcelas_str):
             return self.handle_cancel(message.chat.id)
@@ -209,7 +209,7 @@ class ExpenseHandler(BaseHandler):
 
     def process_custom_category(self, message) -> None:
         """Handle custom category name typed by user."""
-        name = message.text.strip()
+        name = self._get_text(message)
         chat_id = message.chat.id
         user_id = message.from_user.id
 
@@ -259,6 +259,7 @@ class ExpenseHandler(BaseHandler):
             user_msg = ERROR_MESSAGES.get(error_key,
                                            f"❌ Erro ao salvar despesa: {error_key[:100]}")
             self.send_error(chat_id, user_msg)
+            self.state.clear_user_state(user_id)
             return
 
         self.state.clear_user_state(user_id)
@@ -290,7 +291,7 @@ class ExpenseHandler(BaseHandler):
 
     def process_delete_id(self, message) -> None:
         """Step 1: Get and validate expense ID for deletion."""
-        expense_id_str = message.text.strip()
+        expense_id_str = self._get_text(message)
 
         if self.is_cancel_command(expense_id_str):
             return self.handle_cancel(message.chat.id)
@@ -332,7 +333,7 @@ class ExpenseHandler(BaseHandler):
 
     def process_delete_confirmation(self, message) -> None:
         """Step 2: Process deletion confirmation."""
-        confirmation = message.text.strip().lower()
+        confirmation = self._get_text(message).lower()
 
         if self.is_cancel_command(confirmation):
             return self.handle_cancel(message.chat.id)
@@ -367,7 +368,7 @@ class ExpenseHandler(BaseHandler):
 
     def process_search_query(self, message) -> None:
         """Search expenses by name and show results."""
-        query = message.text.strip()
+        query = self._get_text(message)
         chat_id = message.chat.id
         user_id = message.from_user.id
 
@@ -388,7 +389,7 @@ class ExpenseHandler(BaseHandler):
         for exp in results:
             pm = exp.payment_method or "-"
             text = SEARCH_RESULT_FORMAT.format(
-                id=exp.id,
+                local_id=exp.local_id,
                 name=exp.name,
                 amount=exp.amount,
                 date=exp.date,
@@ -408,7 +409,7 @@ class ExpenseHandler(BaseHandler):
 
     def process_edit_id(self, message) -> None:
         """Get expense ID to edit."""
-        expense_id_str = message.text.strip()
+        expense_id_str = self._get_text(message)
 
         if self.is_cancel_command(expense_id_str):
             return self.handle_cancel(message.chat.id)
@@ -544,7 +545,7 @@ class ExpenseHandler(BaseHandler):
         """Process the new value for the field being edited."""
         user_id = message.from_user.id
         chat_id = message.chat.id
-        new_value = message.text.strip()
+        new_value = self._get_text(message)
 
         if self.is_cancel_command(new_value):
             return self.handle_cancel(chat_id)
@@ -565,18 +566,23 @@ class ExpenseHandler(BaseHandler):
                 self.send_error(chat_id, "❌ Despesa não encontrada.")
                 return
             if field == "EDIT_VALUE":
-                update_kwargs["amount"] = str(expense.amount)
+                update_kwargs["amount"] = expense.amount
             elif field == "EDIT_NAME":
                 update_kwargs["name"] = expense.name
             elif field == "EDIT_DATE":
                 update_kwargs["date"] = expense.date
             elif field == "EDIT_INSTALLMENTS":
-                update_kwargs["installment"] = str(expense.installment)
+                update_kwargs["installment"] = expense.installment
             elif field == "EDIT_CATEGORY":
                 update_kwargs["category_id"] = expense.category_id
+            elif field == "EDIT_PAYMENT":
+                update_kwargs["payment_method"] = expense.payment_method
             if update_kwargs:
-                self.expense_service.update_expense(expense_id, **update_kwargs)
-                self.send_success(chat_id, EDIT_SUCCESS)
+                try:
+                    self.expense_service.update_expense(expense_id, **update_kwargs)
+                    self.send_success(chat_id, EDIT_SUCCESS)
+                except Exception as e:
+                    self.send_error(chat_id, f"❌ Erro ao editar: {str(e)[:100]}")
                 self.state.clear_user_state(user_id)
             return
 
@@ -587,7 +593,7 @@ class ExpenseHandler(BaseHandler):
                 msg = self.bot.send_message(chat_id, "✏️ Digite o novo valor:")
                 self.bot.register_next_step_handler(msg, self.process_edit_value)
                 return
-            update_kwargs["amount"] = str(val)
+            update_kwargs["amount"] = val
 
         elif field == "EDIT_NAME":
             is_valid, err = self.validator.validate_name(new_value)
@@ -614,7 +620,7 @@ class ExpenseHandler(BaseHandler):
                 msg = self.bot.send_message(chat_id, "✏️ Digite o número de parcelas:")
                 self.bot.register_next_step_handler(msg, self.process_edit_value)
                 return
-            update_kwargs["installment"] = str(val)
+            update_kwargs["installment"] = val
 
         elif field == "EDIT_CATEGORY":
             categories = self.expense_service.get_categories(user_id)

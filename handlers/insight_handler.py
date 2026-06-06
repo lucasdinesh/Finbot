@@ -35,8 +35,8 @@ class InsightHandler(BaseHandler):
             self.send_info(message.chat.id, INSIGHT_NO_DATA)
             return
 
-        current_total = sum(e.amount for e in current_expenses)
-        prev_total = sum(e.amount for e in prev_expenses)
+        current_total = sum(e.amount / max(e.installment, 1) for e in current_expenses)
+        prev_total = sum(e.amount / max(e.installment, 1) for e in prev_expenses)
 
         total_change = 0.0
         if prev_total > 0:
@@ -59,12 +59,12 @@ class InsightHandler(BaseHandler):
         current_by_cat: dict = {}
         for e in current_expenses:
             key = e.category_id or -1
-            current_by_cat[key] = current_by_cat.get(key, 0) + e.amount
+            current_by_cat[key] = current_by_cat.get(key, 0) + (e.amount / max(e.installment, 1))
 
         prev_by_cat: dict = {}
         for e in prev_expenses:
             key = e.category_id or -1
-            prev_by_cat[key] = prev_by_cat.get(key, 0) + e.amount
+            prev_by_cat[key] = prev_by_cat.get(key, 0) + (e.amount / max(e.installment, 1))
 
         all_keys = sorted(set(list(current_by_cat.keys()) + list(prev_by_cat.keys())))
 

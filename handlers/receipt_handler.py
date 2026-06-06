@@ -265,6 +265,17 @@ class ReceiptHandler(BaseHandler):
             )
             self.bot.register_next_step_handler(msg, self._handle_edit_date)
 
+        elif call.data == "RECEIPT_EDIT_FIELD_INSTALLMENTS":
+            self.bot.edit_message_reply_markup(chat_id, call.message.message_id,
+                                               reply_markup=None)
+            self.state.update_receipt_state(user_id, "step", "editing_installments")
+            current_inst = parsed.get("installments", 1)
+            msg = self.bot.send_message(
+                chat_id, SCAN_EDIT_INSTALLMENTS.format(current=current_inst),
+                parse_mode="Markdown",
+            )
+            self.bot.register_next_step_handler(msg, self._handle_edit_installments)
+
         elif call.data == "RECEIPT_EDIT_DONE":
             self.state.update_receipt_state(user_id, "step", "awaiting_payment")
             self._ask_receipt_payment(chat_id, user_id, call)
@@ -278,6 +289,7 @@ class ReceiptHandler(BaseHandler):
             types.InlineKeyboardButton("Valor 💵", callback_data="RECEIPT_EDIT_FIELD_VALUE"),
             types.InlineKeyboardButton("Estabelecimento 🏪", callback_data="RECEIPT_EDIT_FIELD_NAME"),
             types.InlineKeyboardButton("Data 📅", callback_data="RECEIPT_EDIT_FIELD_DATE"),
+            types.InlineKeyboardButton("Parcelas 📦", callback_data="RECEIPT_EDIT_FIELD_INSTALLMENTS"),
             types.InlineKeyboardButton("Pronto ✅", callback_data="RECEIPT_EDIT_DONE"),
         )
         self.bot.send_message(chat_id, "✏️ Escolha o campo que deseja corrigir:",
@@ -351,7 +363,7 @@ class ReceiptHandler(BaseHandler):
             self.handle_cancel(chat_id)
             return
 
-        is_valid, installments, error_key = self.validator.validate_installments(message.text)
+        is_valid, installments, error_key = self.validator.validate_installments(self._get_text(message))
         if not is_valid:
             self.send_error(chat_id, self._ERROR_MAP.get(error_key, "Número de parcelas inválido"))
             msg = self.bot.send_message(chat_id, "Quantas parcelas? (1-1000):")
@@ -403,7 +415,7 @@ class ReceiptHandler(BaseHandler):
 
     def _handle_custom_category(self, message) -> None:
         """Handle custom category name from receipt flow."""
-        name = message.text.strip()
+        name = self._get_text(message)
         chat_id = message.chat.id
         user_id = message.from_user.id
 
@@ -461,7 +473,7 @@ class ReceiptHandler(BaseHandler):
 
     @staticmethod
     def _is_accept(text: str) -> bool:
-        return text.strip().lower() in ("ok", "okay", "sim", "s", "keep")
+        return bool(text) and text.strip().lower() in ("ok", "okay", "sim", "s", "keep")
 
     def _handle_edit_value(self, message) -> None:
         user_id = message.from_user.id
@@ -475,7 +487,7 @@ class ReceiptHandler(BaseHandler):
             self.handle_cancel(chat_id)
             return
 
-        is_valid, value, error_key = self.validator.validate_value(message.text)
+        is_valid, value, error_key = self.validator.validate_value(self._get_text(message))
         if not is_valid:
             logger.warning("Invalid value input: %s (error=%s)", message.text, error_key)
             self.send_error(chat_id, self._ERROR_MAP.get(error_key, "Valor inválido"))
@@ -509,7 +521,7 @@ class ReceiptHandler(BaseHandler):
             self.handle_cancel(chat_id)
             return
 
-        name = message.text.strip()
+        name = self._get_text(message)
         if not name:
             logger.warning("Empty name submitted")
             self.send_error(chat_id, NAME_EMPTY)
@@ -542,7 +554,7 @@ class ReceiptHandler(BaseHandler):
 
         from datetime import datetime
         import re
-        date_str = message.text.strip().lower()
+        date_str = self._get_text(message).lower()
 
         if date_str == "não especificado":
             logger.warning("Date is 'Não especificado'")
@@ -605,7 +617,7 @@ class ReceiptHandler(BaseHandler):
             logger.info("Installments kept: %d", installments)
         else:
             is_valid, installments, error_key = self.validator.validate_installments(
-                message.text
+                self._get_text(message)
             )
             if not is_valid:
                 logger.warning("Invalid installments: %s (error=%s)", message.text, error_key)

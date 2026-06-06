@@ -60,6 +60,9 @@ class LlamaService:
                 temperature=0.0,
                 max_tokens=256,
             )
+            if not response.choices or response.choices[0].message is None or response.choices[0].message.content is None:
+                logger.warning("LLM returned no choices or empty content")
+                return None
             text = response.choices[0].message.content.strip()
             logger.info("LLM raw response:\n%s", text)
         except Exception as exc:
@@ -123,12 +126,19 @@ class LlamaService:
             now = datetime.now()
             current_year = now.year
 
-            parts = date_str.split("-")
-            if len(parts) == 3:
-                day, month, year = parts
-                if len(year) == 4 and int(year) != current_year:
-                    result["date"] = f"{day}-{month}-{current_year}"
-                    logger.info("Fixed date year from %s to %s", year, current_year)
+            for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%m-%d-%Y"):
+                try:
+                    dt = datetime.strptime(date_str, fmt)
+                    break
+                except ValueError:
+                    continue
+            else:
+                logger.warning("Could not parse date: %s", date_str)
+                return result
+
+            if dt.year != current_year:
+                result["date"] = dt.strftime("%d-%m-%Y").replace(str(dt.year), str(current_year))
+                logger.info("Fixed date year from %s to %s", dt.year, current_year)
         except (ValueError, IndexError):
             pass
 
