@@ -127,6 +127,87 @@ class TestRegisterNextHandler:
         assert callable(args[1])
 
 
+class TestCommandDetection:
+    @pytest.fixture(autouse=True)
+    def setup_commands(self):
+        BaseHandler._command_map.clear()
+        self.fake_cmd_handler = MagicMock()
+        BaseHandler.register_command("testcmd", self.fake_cmd_handler)
+        yield
+        BaseHandler._command_map.clear()
+
+    def test_normal_text_calls_original_handler(self, handler, mock_bot):
+        msg = MagicMock()
+        msg.from_user.id = 42
+        msg.text = "hello world"
+        fake_handler = MagicMock()
+        handler.register_next_handler(msg, fake_handler)
+        guarded = mock_bot.register_next_step_handler.call_args[0][1]
+        guarded(msg)
+        fake_handler.assert_called_once_with(msg)
+
+    def test_known_command_clears_state_and_dispatches(self, handler, mock_bot, state_manager):
+        state_manager.update_user_state(42, "current_step", "waiting_value")
+        msg = MagicMock()
+        msg.from_user.id = 42
+        msg.text = "/testcmd"
+        fake_handler = MagicMock()
+        handler.register_next_handler(msg, fake_handler)
+        guarded = mock_bot.register_next_step_handler.call_args[0][1]
+        guarded(msg)
+        fake_handler.assert_not_called()
+        self.fake_cmd_handler.assert_called_once_with(msg)
+        assert state_manager.get_user_state(42) == {}
+
+    def test_known_command_with_args_still_dispatches(self, handler, mock_bot, state_manager):
+        state_manager.update_user_state(42, "current_step", "waiting_value")
+        msg = MagicMock()
+        msg.from_user.id = 42
+        msg.text = "/testcmd some extra text"
+        fake_handler = MagicMock()
+        handler.register_next_handler(msg, fake_handler)
+        guarded = mock_bot.register_next_step_handler.call_args[0][1]
+        guarded(msg)
+        fake_handler.assert_not_called()
+        self.fake_cmd_handler.assert_called_once_with(msg)
+
+    def test_unknown_command_falls_through(self, handler, mock_bot):
+        msg = MagicMock()
+        msg.from_user.id = 42
+        msg.text = "/unknown"
+        fake_handler = MagicMock()
+        handler.register_next_handler(msg, fake_handler)
+        guarded = mock_bot.register_next_step_handler.call_args[0][1]
+        guarded(msg)
+        fake_handler.assert_called_once_with(msg)
+
+    def test_empty_text_falls_through(self, handler, mock_bot):
+        msg = MagicMock()
+        msg.from_user.id = 42
+        msg.text = ""
+        fake_handler = MagicMock()
+        handler.register_next_handler(msg, fake_handler)
+        guarded = mock_bot.register_next_step_handler.call_args[0][1]
+        guarded(msg)
+        fake_handler.assert_called_once_with(msg)
+
+    def test_none_text_falls_through(self, handler, mock_bot):
+        msg = MagicMock()
+        msg.from_user.id = 42
+        msg.text = None
+        fake_handler = MagicMock()
+        handler.register_next_handler(msg, fake_handler)
+        guarded = mock_bot.register_next_step_handler.call_args[0][1]
+        guarded(msg)
+        fake_handler.assert_called_once_with(msg)
+
+    def test_register_commands_bulk(self, handler):
+        handler2 = MagicMock()
+        BaseHandler.register_commands({"cmd2": handler2})
+        assert "cmd2" in BaseHandler._command_map
+        assert BaseHandler._command_map["cmd2"] is handler2
+
+
 class TestHandleCancel:
     def test_cancel_sends_message(self, handler, mock_bot):
         result = handler.handle_cancel(100)
