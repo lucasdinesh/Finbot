@@ -412,7 +412,16 @@ class ReceiptHandler(BaseHandler):
         keyboard.add(
             types.InlineKeyboardButton(CATEGORY_OTHER, callback_data="RCCAT_OTHER")
         )
-        self.bot.send_message(chat_id, ADD_CATEGORY_PROMPT, reply_markup=keyboard)
+        msg = self.bot.send_message(chat_id, ADD_CATEGORY_PROMPT, reply_markup=keyboard)
+        self.register_next_handler(msg, self._handle_unexpected_receipt_category_text, chat_id, user_id)
+
+    def _handle_unexpected_receipt_category_text(self, message, chat_id, user_id):
+        text = self._get_text(message)
+        if self.is_cancel_command(text):
+            self.state.clear_receipt_state(user_id)
+            return self.handle_cancel(chat_id)
+        self.send_error(message.chat.id, "❌ Use os botões para selecionar uma categoria.")
+        self._ask_receipt_category(chat_id, user_id)
 
     def handle_receipt_category_callback(self, call) -> None:
         """Handle category selection in receipt flow."""
