@@ -554,12 +554,12 @@ class ReceiptHandler(BaseHandler):
             return
 
         from datetime import datetime
-        import re
         date_str = self._get_text(message).lower()
 
-        from services.expense_service import _normalize
-        if _normalize(date_str) == "não especificado":
-            logger.warning("Date is 'Não especificado'")
+        try:
+            datetime.strptime(date_str.strip(), "%d-%m-%Y")
+        except ValueError:
+            logger.warning("Invalid date format: %s", date_str)
             self.send_error(chat_id, DATE_NOT_SPECIFIED)
             current_date = parsed.get("date") or "não identificada"
             msg = self.bot.send_message(

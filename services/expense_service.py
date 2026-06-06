@@ -1,6 +1,5 @@
 """Business logic for expense operations."""
 import logging
-import unicodedata
 from typing import Optional, List
 from datetime import datetime
 from domain.models import Expenses
@@ -8,10 +7,6 @@ from database import IExpenseRepository
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
-
-def _normalize(text: str) -> str:
-    return unicodedata.normalize('NFC', text.strip().lower())
 
 
 class ExpenseService:
@@ -30,8 +25,11 @@ class ExpenseService:
         category_id: int = None,
         payment_method: str = None,
     ) -> Optional[str]:
-        if date and _normalize(date) == "não especificado":
-            raise ValueError("DATE_NOT_SPECIFIED")
+        if date:
+            try:
+                datetime.strptime(date.strip(), "%d-%m-%Y")
+            except ValueError:
+                raise ValueError("DATE_NOT_SPECIFIED")
 
         logger.info(
             "Saving expense: user=%d, name=%s, amount=%.2f, installments=%d, date=%s, category_id=%s, payment_method=%s",
