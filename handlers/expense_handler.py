@@ -144,7 +144,7 @@ class ExpenseHandler(BaseHandler):
         if payment_method == "credito":
             self.state.update_user_state(user_id, "installment", None)
             msg = self.bot.send_message(chat_id, ADD_INSTALLMENTS_PROMPT)
-            self.bot.register_next_step_handler(msg, self.process_installments)
+            self.register_next_handler(msg, self.process_installments)
         else:
             self.state.update_user_state(user_id, "installment", "1")
             self._ask_category(chat_id, user_id)
@@ -196,7 +196,7 @@ class ExpenseHandler(BaseHandler):
         if call.data == "CATEGORY_OTHER":
             self.bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=None)
             msg = self.bot.send_message(chat_id, ADD_CATEGORY_CUSTOM_PROMPT)
-            self.bot.register_next_step_handler(msg, self.process_custom_category)
+            self.register_next_handler(msg, self.process_custom_category)
             self.bot.answer_callback_query(call.id)
             return
 
@@ -518,7 +518,7 @@ class ExpenseHandler(BaseHandler):
                 f"✏️ Valor atual: *{current_value}*\nDigite o novo valor ou 'ok' para manter:",
                 parse_mode="Markdown",
             )
-            self.bot.register_next_step_handler(msg, self.process_edit_value)
+            self.register_next_handler(msg, self.process_edit_value)
         self.bot.answer_callback_query(call.id)
 
     def _ask_edit_payment(self, chat_id: int, user_id: int) -> None:
@@ -591,7 +591,7 @@ class ExpenseHandler(BaseHandler):
             if not is_valid:
                 self.send_error(chat_id, ERROR_MESSAGES.get(err, "Valor inválido"))
                 msg = self.bot.send_message(chat_id, "✏️ Digite o novo valor:")
-                self.bot.register_next_step_handler(msg, self.process_edit_value)
+                self.register_next_handler(msg, self.process_edit_value)
                 return
             update_kwargs["amount"] = val
 
@@ -600,7 +600,7 @@ class ExpenseHandler(BaseHandler):
             if not is_valid:
                 self.send_error(chat_id, ERROR_MESSAGES.get(err, "Nome inválido"))
                 msg = self.bot.send_message(chat_id, "✏️ Digite o novo nome:")
-                self.bot.register_next_step_handler(msg, self.process_edit_value)
+                self.register_next_handler(msg, self.process_edit_value)
                 return
             update_kwargs["name"] = new_value
 
@@ -609,7 +609,7 @@ class ExpenseHandler(BaseHandler):
             if not date_pattern.match(new_value):
                 self.send_error(chat_id, "❌ Data inválida! Use DD-MM-YYYY.")
                 msg = self.bot.send_message(chat_id, "✏️ Digite a nova data:")
-                self.bot.register_next_step_handler(msg, self.process_edit_value)
+                self.register_next_handler(msg, self.process_edit_value)
                 return
             update_kwargs["date"] = new_value
 
@@ -618,7 +618,7 @@ class ExpenseHandler(BaseHandler):
             if not is_valid:
                 self.send_error(chat_id, ERROR_MESSAGES.get(err, "Parcelas inválidas"))
                 msg = self.bot.send_message(chat_id, "✏️ Digite o número de parcelas:")
-                self.bot.register_next_step_handler(msg, self.process_edit_value)
+                self.register_next_handler(msg, self.process_edit_value)
                 return
             update_kwargs["installment"] = val
 
@@ -638,7 +638,7 @@ class ExpenseHandler(BaseHandler):
             if pm not in ("pix", "dinheiro", "credito"):
                 self.send_error(chat_id, "❌ Forma de pagamento inválida! Use: Pix, Dinheiro ou Crédito.")
                 msg = self.bot.send_message(chat_id, "✏️ Digite a forma de pagamento:")
-                self.bot.register_next_step_handler(msg, self.process_edit_value)
+                self.register_next_handler(msg, self.process_edit_value)
                 return
             update_kwargs["payment_method"] = pm
 

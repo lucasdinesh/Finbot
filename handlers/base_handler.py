@@ -3,10 +3,21 @@ import telebot
 from state.conversation_manager import ConversationManager
 from messages import ADD_CANCELLED
 import time
+from typing import Callable
 
 
 class BaseHandler:
     """Base class for all handlers with shared functionality."""
+
+    _command_map: dict[str, Callable] = {}
+
+    @classmethod
+    def register_command(cls, name: str, handler: Callable) -> None:
+        cls._command_map[name.lower()] = handler
+
+    @classmethod
+    def register_commands(cls, commands: dict[str, Callable]) -> None:
+        cls._command_map.update({k.lower(): v for k, v in commands.items()})
 
     def __init__(self, bot: telebot.TeleBot, state_manager: ConversationManager):
         """
@@ -66,8 +77,18 @@ class BaseHandler:
         self._send_message_with_retry(chat_id, message)
 
     def register_next_handler(self, message, handler, *args) -> None:
-        """Register next step handler for multi-step conversations."""
-        self.bot.register_next_step_handler(message, handler, *args)
+        """Register next step handler with automatic command detection."""
+        def guarded(msg):
+            text = self._get_text(msg)
+            if text.startswith('/'):
+                cmd = text[1:].split()[0].lower()
+                if cmd in self._command_map:
+                    user_id = msg.from_user.id
+                    self.state.clear_user_state(user_id)
+                    self._command_map[cmd](msg)
+                    return
+            handler(msg, *args)
+        self.bot.register_next_step_handler(message, guarded)
 
     def is_cancel_command(self, text: str) -> bool:
         """Check if user wants to cancel."""

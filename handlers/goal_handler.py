@@ -134,7 +134,7 @@ class GoalHandler(BaseHandler):
             GOAL_CONTRIBUTE_PROMPT.format(name=goal_name),
             parse_mode="Markdown",
         )
-        self.bot.register_next_step_handler(msg, self.process_contribute_value)
+        self.register_next_handler(msg, self.process_contribute_value)
         self.bot.answer_callback_query(call.id)
 
     def process_contribute_value(self, message) -> None:

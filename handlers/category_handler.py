@@ -31,7 +31,7 @@ class CategoryHandler(BaseHandler):
             call.message.chat.id, call.message.message_id, reply_markup=None
         )
         msg = self.bot.send_message(call.message.chat.id, ADD_CATEGORY_CUSTOM_PROMPT)
-        self.bot.register_next_step_handler(msg, self.handle_create_category_name)
+        self.register_next_handler(msg, self.handle_create_category_name)
         self.bot.answer_callback_query(call.id)
 
     def handle_create_category_name(self, message) -> None:

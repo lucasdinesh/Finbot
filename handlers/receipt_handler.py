@@ -241,7 +241,7 @@ class ReceiptHandler(BaseHandler):
                 )
             else:
                 msg = self.bot.send_message(chat_id, "✏️ Digite o valor da despesa:")
-            self.bot.register_next_step_handler(msg, self._handle_edit_value)
+            self.register_next_handler(msg, self._handle_edit_value)
 
         elif call.data == "RECEIPT_EDIT_FIELD_NAME":
             self.bot.edit_message_reply_markup(chat_id, call.message.message_id,
@@ -252,7 +252,7 @@ class ReceiptHandler(BaseHandler):
                 chat_id, SCAN_EDIT_NAME.format(current=current_name),
                 parse_mode="Markdown",
             )
-            self.bot.register_next_step_handler(msg, self._handle_edit_name)
+            self.register_next_handler(msg, self._handle_edit_name)
 
         elif call.data == "RECEIPT_EDIT_FIELD_DATE":
             self.bot.edit_message_reply_markup(chat_id, call.message.message_id,
@@ -263,7 +263,7 @@ class ReceiptHandler(BaseHandler):
                 chat_id, SCAN_EDIT_DATE.format(current=current_date),
                 parse_mode="Markdown",
             )
-            self.bot.register_next_step_handler(msg, self._handle_edit_date)
+            self.register_next_handler(msg, self._handle_edit_date)
 
         elif call.data == "RECEIPT_EDIT_FIELD_INSTALLMENTS":
             self.bot.edit_message_reply_markup(chat_id, call.message.message_id,
@@ -274,7 +274,7 @@ class ReceiptHandler(BaseHandler):
                 chat_id, SCAN_EDIT_INSTALLMENTS.format(current=current_inst),
                 parse_mode="Markdown",
             )
-            self.bot.register_next_step_handler(msg, self._handle_edit_installments)
+            self.register_next_handler(msg, self._handle_edit_installments)
 
         elif call.data == "RECEIPT_EDIT_DONE":
             self.state.update_receipt_state(user_id, "step", "awaiting_payment")
@@ -341,7 +341,7 @@ class ReceiptHandler(BaseHandler):
         if payment_method == "credito":
             self.state.update_receipt_state(user_id, "step", "awaiting_installments")
             msg = self.bot.send_message(chat_id, "Quantas parcelas? (1-1000):")
-            self.bot.register_next_step_handler(msg, self._handle_receipt_installments)
+            self.register_next_handler(msg, self._handle_receipt_installments)
             self.bot.answer_callback_query(call.id)
             return
         else:
@@ -367,7 +367,7 @@ class ReceiptHandler(BaseHandler):
         if not is_valid:
             self.send_error(chat_id, self._ERROR_MAP.get(error_key, "Número de parcelas inválido"))
             msg = self.bot.send_message(chat_id, "Quantas parcelas? (1-1000):")
-            self.bot.register_next_step_handler(msg, self._handle_receipt_installments)
+            self.register_next_handler(msg, self._handle_receipt_installments)
             return
 
         self.state.update_receipt_state(user_id, "parsed_data", {
@@ -402,7 +402,7 @@ class ReceiptHandler(BaseHandler):
         if call.data == "RCCAT_OTHER":
             self.bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=None)
             msg = self.bot.send_message(chat_id, ADD_CATEGORY_CUSTOM_PROMPT)
-            self.bot.register_next_step_handler(msg, self._handle_custom_category)
+            self.register_next_handler(msg, self._handle_custom_category)
             self.bot.answer_callback_query(call.id)
             return
 
@@ -427,13 +427,13 @@ class ReceiptHandler(BaseHandler):
         if not name:
             self.send_error(chat_id, NAME_EMPTY)
             msg = self.bot.send_message(chat_id, ADD_CATEGORY_CUSTOM_PROMPT)
-            self.bot.register_next_step_handler(msg, self._handle_custom_category)
+            self.register_next_handler(msg, self._handle_custom_category)
             return
 
         if len(name) > 50:
             self.send_error(chat_id, NAME_TOO_LONG)
             msg = self.bot.send_message(chat_id, ADD_CATEGORY_CUSTOM_PROMPT)
-            self.bot.register_next_step_handler(msg, self._handle_custom_category)
+            self.register_next_handler(msg, self._handle_custom_category)
             return
 
         category_id = self.expense_service.create_category(name, user_id)
@@ -469,7 +469,7 @@ class ReceiptHandler(BaseHandler):
         """Fallback when no amount was detected."""
         self.state.update_receipt_state(user_id, "step", "editing_value")
         msg = self.bot.send_message(chat_id, SCAN_NO_AMOUNT)
-        self.bot.register_next_step_handler(msg, self._handle_edit_value)
+        self.register_next_handler(msg, self._handle_edit_value)
 
     @staticmethod
     def _is_accept(text: str) -> bool:
@@ -499,7 +499,7 @@ class ReceiptHandler(BaseHandler):
                 )
             else:
                 msg = self.bot.send_message(chat_id, "✏️ Digite o valor da despesa:")
-            self.bot.register_next_step_handler(msg, self._handle_edit_value)
+            self.register_next_handler(msg, self._handle_edit_value)
             return
         logger.info("Value accepted: %.2f", value)
 
@@ -530,7 +530,7 @@ class ReceiptHandler(BaseHandler):
                 chat_id, SCAN_EDIT_NAME.format(current=current_name),
                 parse_mode="Markdown",
             )
-            self.bot.register_next_step_handler(msg, self._handle_edit_name)
+            self.register_next_handler(msg, self._handle_edit_name)
             return
         logger.info("Name accepted: %s", name)
 
@@ -564,7 +564,7 @@ class ReceiptHandler(BaseHandler):
                 chat_id, SCAN_EDIT_DATE.format(current=current_date),
                 parse_mode="Markdown",
             )
-            self.bot.register_next_step_handler(msg, self._handle_edit_date)
+            self.register_next_handler(msg, self._handle_edit_date)
             return
 
         if date_str == "hoje":
@@ -579,7 +579,7 @@ class ReceiptHandler(BaseHandler):
                     chat_id, SCAN_EDIT_DATE.format(current=current_date),
                     parse_mode="Markdown",
                 )
-                self.bot.register_next_step_handler(msg, self._handle_edit_date)
+                self.register_next_handler(msg, self._handle_edit_date)
                 return
 
         selected = datetime.strptime(date_str, "%d-%m-%Y")
@@ -590,7 +590,7 @@ class ReceiptHandler(BaseHandler):
                 chat_id, SCAN_EDIT_DATE.format(current=current_date),
                 parse_mode="Markdown",
             )
-            self.bot.register_next_step_handler(msg, self._handle_edit_date)
+            self.register_next_handler(msg, self._handle_edit_date)
             return
 
         logger.info("Date accepted: %s", date_str)
@@ -628,7 +628,7 @@ class ReceiptHandler(BaseHandler):
                     chat_id, SCAN_EDIT_INSTALLMENTS.format(current=current_inst),
                     parse_mode="Markdown",
                 )
-                self.bot.register_next_step_handler(msg,
+                self.register_next_handler(msg,
                                                      self._handle_edit_installments)
                 return
 

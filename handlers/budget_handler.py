@@ -47,7 +47,7 @@ class BudgetHandler(BaseHandler):
             BUDGET_SET_PROMPT.format(category=cat_name),
             parse_mode="Markdown",
         )
-        self.bot.register_next_step_handler(msg, self.process_budget_value)
+        self.register_next_handler(msg, self.process_budget_value)
         self.bot.answer_callback_query(call.id)
 
     def process_budget_value(self, message) -> None:

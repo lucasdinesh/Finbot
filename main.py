@@ -315,6 +315,33 @@ def delete_expense_cmd(message):
     expense_handler.handle_delete_command(message)
 
 
+# Register command handlers for cross-flow abort detection
+from handlers.base_handler import BaseHandler
+BaseHandler.register_commands({
+    "inicio": send_welcome,
+    "start": send_welcome,
+    "ajuda": send_help,
+    "adicionar": expense_handler.handle_add_command,
+    "listar": report_handler.handle_get_all,
+    "buscar": expense_handler.handle_search_command,
+    "buscar_por_data": date_handler.handle_getbydate,
+    "editar": expense_handler.handle_edit_command,
+    "deletar": expense_handler.handle_delete_command,
+    "resumo_mensal": report_handler.handle_monthly_summary,
+    "relatorio": report_handler.handle_quick_report,
+    "comparativo": insight_handler.handle_insights,
+    "categorias": category_handler.handle_list_categories,
+    "definir_orcamento": budget_handler.handle_set_budget,
+    "orcamentos": budget_handler.handle_list_budgets,
+    "adicionar_recorrente": recurring_handler.handle_add_recurring,
+    "recorrentes": recurring_handler.handle_list_recurring,
+    "remover_recorrente": recurring_handler.handle_delete_recurring,
+    "adicionar_meta": goal_handler.handle_add_goal,
+    "metas": goal_handler.handle_list_goals,
+    "contribuir_meta": goal_handler.handle_contribute_start,
+    "foto": receipt_handler.handle_scan_command,
+})
+
 # ============================================================================
 # CALLBACK HANDLERS
 # ============================================================================

@@ -97,7 +97,7 @@ class RecurringHandler(BaseHandler):
         if call.data == "RCAT_OTHER":
             self.bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=None)
             msg = self.bot.send_message(chat_id, ADD_CATEGORY_CUSTOM_PROMPT)
-            self.bot.register_next_step_handler(msg, self.process_custom_category)
+            self.register_next_handler(msg, self.process_custom_category)
             self.bot.answer_callback_query(call.id)
             return
 
@@ -125,7 +125,7 @@ class RecurringHandler(BaseHandler):
 
     def _ask_day(self, chat_id: int, user_id: int) -> None:
         msg = self.bot.send_message(chat_id, RECURRING_DAY_PROMPT)
-        self.bot.register_next_step_handler(msg, self.process_day)
+        self.register_next_handler(msg, self.process_day)
 
     def process_day(self, message) -> None:
         day_str = message.text.strip()
