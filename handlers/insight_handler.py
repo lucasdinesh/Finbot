@@ -66,7 +66,11 @@ class InsightHandler(BaseHandler):
             key = e.category_id or -1
             prev_by_cat[key] = prev_by_cat.get(key, 0) + (e.amount / max(e.installment, 1))
 
-        all_keys = sorted(set(list(current_by_cat.keys()) + list(prev_by_cat.keys())))
+        all_keys = sorted(
+            set(list(current_by_cat.keys()) + list(prev_by_cat.keys())),
+            key=lambda k: current_by_cat.get(k, 0),
+            reverse=True,
+        )
 
         for key in all_keys:
             c_amt = current_by_cat.get(key, 0)
