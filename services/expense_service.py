@@ -25,14 +25,17 @@ class ExpenseService:
         category_id: int = None,
         payment_method: str = None,
     ) -> Optional[str]:
+        if date and date.strip().lower() == "não especificado":
+            raise ValueError("DATE_NOT_SPECIFIED")
+
         logger.info(
             "Saving expense: user=%d, name=%s, amount=%.2f, installments=%d, date=%s, category_id=%s, payment_method=%s",
             user_id, name, amount, installments, date or "today", category_id, payment_method,
         )
         self.repository.add(
             name=name,
-            amount=str(amount),
-            installment=str(installments),
+            amount=amount,
+            installment=installments,
             user_id=user_id,
             date=date,
             category_id=category_id,

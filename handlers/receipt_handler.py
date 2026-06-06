@@ -14,6 +14,7 @@ from messages import (
     SCAN_EDIT_VALUE, SCAN_EDIT_NAME, SCAN_EDIT_DATE, SCAN_EDIT_INSTALLMENTS,
     SCAN_NO_AMOUNT, ADD_SUCCESS, VALUE_INVALID, VALUE_MUST_BE_POSITIVE,
     NAME_EMPTY, NAME_TOO_LONG, NAME_NOT_ALPHANUMERIC,
+    DATE_NOT_SPECIFIED,
     INSTALLMENTS_INVALID, INSTALLMENTS_TOO_LARGE,
     ADD_PAYMENT_PROMPT, PAYMENT_PIX, PAYMENT_DINHEIRO, PAYMENT_CREDITO,
     ADD_CATEGORY_PROMPT, ADD_CATEGORY_CUSTOM_PROMPT, CATEGORY_OTHER,
@@ -39,6 +40,7 @@ class ReceiptHandler(BaseHandler):
         "NAME_EMPTY": NAME_EMPTY,
         "NAME_TOO_LONG": NAME_TOO_LONG,
         "NAME_NOT_ALPHANUMERIC": NAME_NOT_ALPHANUMERIC,
+        "DATE_NOT_SPECIFIED": DATE_NOT_SPECIFIED,
         "INSTALLMENTS_INVALID": INSTALLMENTS_INVALID,
         "INSTALLMENTS_TOO_LARGE": INSTALLMENTS_TOO_LARGE,
     }
@@ -542,6 +544,17 @@ class ReceiptHandler(BaseHandler):
         import re
         date_str = message.text.strip().lower()
 
+        if date_str == "não especificado":
+            logger.warning("Date is 'Não especificado'")
+            self.send_error(chat_id, DATE_NOT_SPECIFIED)
+            current_date = parsed.get("date") or "não identificada"
+            msg = self.bot.send_message(
+                chat_id, SCAN_EDIT_DATE.format(current=current_date),
+                parse_mode="Markdown",
+            )
+            self.bot.register_next_step_handler(msg, self._handle_edit_date)
+            return
+
         if date_str == "hoje":
             date_str = datetime.now().strftime("%d-%m-%Y")
         else:
@@ -642,8 +655,10 @@ class ReceiptHandler(BaseHandler):
             logger.info("Expense saved successfully")
         except Exception as e:
             logger.error("Failed to save expense: %s", e)
-            self.send_error(chat_id,
-                            f"❌ Erro ao salvar despesa: {str(e)[:100]}")
+            error_key = str(e)
+            user_msg = self._ERROR_MAP.get(error_key,
+                                           f"❌ Erro ao salvar despesa: {error_key[:100]}")
+            self.send_error(chat_id, user_msg)
             self.state.clear_receipt_state(user_id)
             return
 

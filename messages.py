@@ -11,7 +11,6 @@ COMMANDS_HEADER = "👋 *Comandos Disponiveis:*\n\n"
 ADD_VALUE_PROMPT = "Qual o valor da despesa?"
 ADD_NAME_PROMPT = "Qual o nome da despesa?"
 ADD_DATE_INVALID = "❌ Data inválida! Use o formato DD-MM-YYYY ou digite 'hoje'.\n_(Digite 'cancelar' para sair)_"
-ADD_INSTALLMENTS_PROMPT = "Escolha uma parcela:"
 ADD_SUCCESS = (
     "Despesa registrada com sucesso!\n"
     "Nome: {name}\n"
@@ -25,11 +24,13 @@ ADD_CANCELLED = "❌ Operação cancelada."
 VALUE_INVALID = "❌ Valor inválido! Por favor, insira um número válido.\n_(Digite 'cancelar' para sair)_"
 VALUE_MUST_BE_POSITIVE = "❌ Valor deve ser maior que zero! Por favor, insira um valor válido.\n_(Digite 'cancelar' para sair)_"
 
+# Date Validation Messages
+DATE_NOT_SPECIFIED = "❌ A data da despesa não pode ficar como 'Não especificado'! Por favor, edite a data."
+
 # Name Validation Messages
 NAME_EMPTY = "❌ Nome da despesa não pode estar vazio! Por favor, insira um nome válido.\n_(Digite 'cancelar' para sair)_"
 NAME_TOO_LONG = "❌ Nome muito longo! Use no máximo 50 caracteres.\n_(Digite 'cancelar' para sair)_"
 NAME_NOT_ALPHANUMERIC = "❌ Nome deve conter apenas letras e números! Por favor, insira um nome válido.\n_(Digite 'cancelar' para sair)_"
-
 # Installments Validation Messages
 ADD_INSTALLMENTS_PROMPT = "Quantas parcelas? (1-1000):"
 INSTALLMENTS_INVALID = "❌ Número de parcelas inválido! Por favor, insira um número inteiro positivo.\n_(Digite 'cancelar' para sair)_"

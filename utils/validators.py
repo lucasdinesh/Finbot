@@ -1,4 +1,5 @@
 """Validation logic for expense data."""
+import re
 
 
 class ExpenseValidator:
@@ -37,10 +38,12 @@ class ExpenseValidator:
         if len(name) > 50:
             return False, "NAME_TOO_LONG"
         
-        # Allow alphanumeric and spaces only
-        if not name.replace(" ", "").isalnum():
+        # Allow letters, numbers, spaces, and common special characters
+        if not re.match(r'^[\w\s&\'.\-À-ÿ]+$', name, re.UNICODE):
             return False, "NAME_NOT_ALPHANUMERIC"
-        
+
+        if name.strip() == "":
+            return False, "NAME_EMPTY"
         return True, ""
 
     @staticmethod

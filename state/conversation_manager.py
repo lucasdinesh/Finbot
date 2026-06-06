@@ -1,4 +1,5 @@
 """Manages conversation state across user interactions."""
+from datetime import datetime
 from threading import Lock
 from typing import Any, Dict
 
@@ -92,7 +93,8 @@ class ConversationManager:
     def get_shown_date(self, chat_id: int) -> tuple:
         """Get currently shown date (year, month)."""
         with self._lock:
-            return self._shown_dates.get(chat_id, (2026, 3))
+            now = datetime.now()
+            return self._shown_dates.get(chat_id, (now.year, now.month))
 
     def set_shown_date(self, chat_id: int, year: int, month: int) -> None:
         """Set currently shown date."""

@@ -17,15 +17,17 @@ from messages import (
 class DateHandler(BaseHandler):
     """Handles date selection and date-based queries."""
 
-    def __init__(self, bot, state_manager):
+    def __init__(self, bot, state_manager, expense_service=None):
         """
         Initialize date handler.
         
         Args:
             bot: TeleBot instance
             state_manager: ConversationManager
+            expense_service: ExpenseService for date range queries
         """
         super().__init__(bot, state_manager)
+        self.expense_service = expense_service
 
     def handle_getbydate(self, message) -> None:
         """Handle /getbydate command - initiate date selection."""
@@ -157,9 +159,7 @@ class DateHandler(BaseHandler):
                 return
             
             # Get expenses from service
-            from main import ExpenseRepositorySingleton
-            expense_repo = ExpenseRepositorySingleton.get_instance()
-            expenses = expense_repo.get_by_date_interval(start_date_str, end_date_str)
+            expenses = self.expense_service.get_expenses_by_date_range(start_date_str, end_date_str)
             
             # Filter by user
             user_expenses = [e for e in expenses if e.user_id == user_id]

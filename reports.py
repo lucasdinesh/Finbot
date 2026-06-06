@@ -192,9 +192,11 @@ class ReportGenerator:
             month_over_month_change = ((current_total - prev_total) / prev_total) * 100
 
         # Get top 3 categories (by total amount) from current month
+        cats = dict(self.repository.get_all_categories(user_id))
         category_totals: Dict[str, float] = {}
         for expense in current_expenses:
-            category_totals[expense.name] = category_totals.get(expense.name, 0.0) + float(expense.amount)
+            cat_name = cats.get(expense.category_id, "Sem categoria")
+            category_totals[cat_name] = category_totals.get(cat_name, 0.0) + float(expense.amount)
 
         top_3_categories = sorted(
             category_totals.items(),
@@ -203,7 +205,7 @@ class ReportGenerator:
         )[:3]
 
         # Total active installments across all expenses
-        total_installments = sum(e.installment for e in current_expenses)
+        total_installments = sum(1 for e in current_expenses if e.installment > 1)
 
         return QuickReport(
             current_month_total=current_total,

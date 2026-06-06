@@ -343,10 +343,16 @@ class PostgresRepository(IExpenseRepository):
                 self.conn.commit()
                 if row:
                     return row[0]
-                cur.execute(
-                    "SELECT id FROM categories WHERE name = %s AND user_id IS %s",
-                    (name, user_id),
-                )
+                if user_id is not None:
+                    cur.execute(
+                        "SELECT id FROM categories WHERE name = %s AND user_id = %s",
+                        (name, user_id),
+                    )
+                else:
+                    cur.execute(
+                        "SELECT id FROM categories WHERE name = %s AND user_id IS NULL",
+                        (name,),
+                    )
                 return cur.fetchone()[0]
         except Exception:
             self.conn.rollback()

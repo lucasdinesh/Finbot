@@ -17,6 +17,7 @@ logging.basicConfig(
 )
 logging.info("Application started — logging ready")
 
+import requests
 import telebot
 from telebot import types
 from config import TOKEN, local_mode, DATABASE_URL, LLM_ENABLED, LLM_API_KEY, LLM_MODEL, LLM_BASE_URL
@@ -40,7 +41,6 @@ from handlers.budget_handler import BudgetHandler
 from handlers.insight_handler import InsightHandler
 from handlers.recurring_handler import RecurringHandler
 from handlers.goal_handler import GoalHandler
-from callbacks.callback_router import CallbackRouter
 
 
 class ExpenseRepositorySingleton:
@@ -87,19 +87,13 @@ ocr_service.llm_service = llm_service
 # Initialize handlers
 expense_handler = ExpenseHandler(bot, state_manager, expense_service)
 report_handler = ReportHandler(bot, state_manager, report_service)
-date_handler = DateHandler(bot, state_manager)
+date_handler = DateHandler(bot, state_manager, expense_service)
 receipt_handler = ReceiptHandler(bot, state_manager, expense_service, ocr_service)
 category_handler = CategoryHandler(bot, state_manager, expense_service)
 budget_handler = BudgetHandler(bot, state_manager, expense_service)
 insight_handler = InsightHandler(bot, state_manager, expense_service)
 recurring_handler = RecurringHandler(bot, state_manager, expense_service)
 goal_handler = GoalHandler(bot, state_manager, expense_service)
-
-# Initialize callback router
-callback_router = CallbackRouter()
-callback_router.register("ADD", lambda call: None)  # Placeholder for backward compat
-callback_router.register("DAY", date_handler.handle_day_selection)
-
 
 # ============================================================================
 # BOT COMMAND SETUP
@@ -325,103 +319,145 @@ def delete_expense_cmd(message):
 # CALLBACK HANDLERS
 # ============================================================================
 
-@bot.callback_query_handler(func=lambda call: 'DAY' in call.data)
+@bot.callback_query_handler(func=lambda call: call.data.startswith('START-DAY;') or call.data.startswith('END-DAY;'))
 def handle_day_callback(call):
     """Handle day selection from calendar."""
-    date_handler.handle_day_selection(call)
+    try:
+        date_handler.handle_day_selection(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_day_callback crashed", exc_info=True)
 
 
-@bot.callback_query_handler(func=lambda call: 'PREV-MONTH' in call.data or 'NEXT-MONTH' in call.data)
+@bot.callback_query_handler(func=lambda call: call.data.startswith('START-PREV-MONTH;') or call.data.startswith('END-PREV-MONTH;') or call.data.startswith('START-NEXT-MONTH;') or call.data.startswith('END-NEXT-MONTH;'))
 def handle_month_nav_callback(call):
     """Handle prev/next month navigation in calendar."""
-    date_handler.handle_month_navigation(call)
+    try:
+        date_handler.handle_month_navigation(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_month_nav_callback crashed", exc_info=True)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('RECEIPT'))
 def handle_receipt_callback(call):
     """Handle receipt confirmation / edit / cancel callbacks."""
-    if call.data == 'RECEIPT_CONFIRM':
-        receipt_handler.handle_confirm(call)
-    elif call.data.startswith('RECEIPT_EDIT_FIELD') or call.data == 'RECEIPT_EDIT_DONE':
-        receipt_handler.handle_edit_field(call)
-    elif call.data == 'RECEIPT_EDIT':
-        receipt_handler.handle_edit(call)
-    elif call.data == 'RECEIPT_CANCEL':
-        receipt_handler.handle_cancel_action(call)
+    try:
+        if call.data == 'RECEIPT_CONFIRM':
+            receipt_handler.handle_confirm(call)
+        elif call.data.startswith('RECEIPT_EDIT_FIELD') or call.data == 'RECEIPT_EDIT_DONE':
+            receipt_handler.handle_edit_field(call)
+        elif call.data == 'RECEIPT_EDIT':
+            receipt_handler.handle_edit(call)
+        elif call.data == 'RECEIPT_CANCEL':
+            receipt_handler.handle_cancel_action(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_receipt_callback crashed", exc_info=True)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('RCPAYMENT_'))
 def handle_receipt_payment_callback(call):
     """Handle payment method selection in receipt flow."""
-    receipt_handler.handle_receipt_payment_callback(call)
+    try:
+        receipt_handler.handle_receipt_payment_callback(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_receipt_payment_callback crashed", exc_info=True)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('RCCAT_'))
 def handle_receipt_category_callback(call):
     """Handle category selection in receipt flow."""
-    receipt_handler.handle_receipt_category_callback(call)
+    try:
+        receipt_handler.handle_receipt_category_callback(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_receipt_category_callback crashed", exc_info=True)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('PAYMENT'))
 def handle_payment_callback(call):
     """Handle payment method selection."""
-    expense_handler.handle_payment_callback(call)
+    try:
+        expense_handler.handle_payment_callback(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_payment_callback crashed", exc_info=True)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('CATEGORY'))
 def handle_category_callback(call):
     """Handle category selection."""
-    expense_handler.handle_category_callback(call)
+    try:
+        expense_handler.handle_category_callback(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_category_callback crashed", exc_info=True)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('EDIT_'))
 def handle_edit_field_callback(call):
     """Handle edit field selection."""
-    expense_handler.handle_edit_field_callback(call)
+    try:
+        expense_handler.handle_edit_field_callback(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_edit_field_callback crashed", exc_info=True)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == 'CATEGORY_CREATE')
 def handle_category_create_callback(call):
     """Handle create category from /categories."""
-    category_handler.handle_create_category_start(call)
+    try:
+        category_handler.handle_create_category_start(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_category_create_callback crashed", exc_info=True)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('BUDGET_CAT_'))
 def handle_budget_category_callback(call):
     """Handle budget category selection."""
-    budget_handler.handle_budget_category_callback(call)
+    try:
+        budget_handler.handle_budget_category_callback(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_budget_category_callback crashed", exc_info=True)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('RPAYMENT_'))
 def handle_recurring_payment_callback(call):
     """Handle recurring expense payment method."""
-    recurring_handler.handle_payment_callback(call)
+    try:
+        recurring_handler.handle_payment_callback(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_recurring_payment_callback crashed", exc_info=True)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('RCAT_'))
 def handle_recurring_category_callback(call):
     """Handle recurring expense category selection."""
-    recurring_handler.handle_category_callback(call)
+    try:
+        recurring_handler.handle_category_callback(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_recurring_category_callback crashed", exc_info=True)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('RDEL_'))
 def handle_recurring_delete_callback(call):
     """Handle recurring expense deletion."""
-    recurring_handler.handle_delete_callback(call)
+    try:
+        recurring_handler.handle_delete_callback(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_recurring_delete_callback crashed", exc_info=True)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('GOAL_CONT_'))
 def handle_goal_contribute_callback(call):
     """Handle goal contribution selection."""
-    goal_handler.handle_contribute_select(call)
+    try:
+        goal_handler.handle_contribute_select(call)
+    except Exception:
+        logging.getLogger("financialbot").error("handle_goal_contribute_callback crashed", exc_info=True)
 
 
 def generate_recurring_expenses():
     """Auto-generate expenses from recurring subscriptions."""
+    logger = logging.getLogger("financialbot")
     try:
         due = expense_service.get_due_recurring_expenses()
-        from datetime import datetime
-        now = datetime.now()
+        now = datetime.datetime.now()
         today = now.strftime("%d-%m-%Y")
         for r in due:
             day = r["day_of_month"]
@@ -446,7 +482,6 @@ def generate_recurring_expenses():
 
 if __name__ == "__main__":
     # Pre-download OCR models at startup (non-blocking — runs in background)
-    import threading
     def _warm_ocr():
         try:
             ocr_service._get_ocr()
@@ -468,38 +503,24 @@ if __name__ == "__main__":
     print("🤖 Financial Bot started! Polling for messages...", flush=True)
     sys.stdout.flush()
     
-    # Polling with retry logic for network errors
-    max_retries = 5
-    retry_count = 0
-    retry_delay = 5  # seconds
-    
+    # Polling with retry logic for network errors only
+    retry_delay = 5
+
     while True:
         try:
             bot.polling(non_stop=True, interval=0, timeout=60)
         except KeyboardInterrupt:
             print("\n🛑 Bot stopped by user", flush=True)
             break
-        except (ConnectionError, TimeoutError) as e:
-            retry_count += 1
-            if retry_count > max_retries:
-                print(f"❌ Max retries ({max_retries}) exceeded. Stopping bot.", flush=True)
-                # bot stopped
-                raise
-            print(f"⚠️  Network error (attempt {retry_count}/{max_retries}): {type(e).__name__}", flush=True)
-            print(f"   Retrying in {retry_delay} seconds...", flush=True)
-            import time
-            time.sleep(retry_delay)
-            retry_delay = min(retry_delay * 2, 60)  # Exponential backoff, max 60s
-        except Exception as e:
-            print(f"❌ BOT CRASHED: {type(e).__name__}: {str(e)[:200]}", flush=True)
-            logging.error("Bot crashed", exc_info=True)
-            retry_count += 1
-            if retry_count > max_retries:
-                print(f"❌ Max retries ({max_retries}) exceeded. Stopping bot.", flush=True)
-                # bot stopped
-                raise
-            print(f"   Retrying in {retry_delay} seconds... (attempt {retry_count}/{max_retries})", flush=True)
+        except (ConnectionError, TimeoutError, requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout) as e:
+            logging.getLogger("financialbot").warning(
+                "Polling network error: %s. Retrying in %ds...", e, retry_delay
+            )
             import time
             time.sleep(retry_delay)
             retry_delay = min(retry_delay * 2, 60)
+        except Exception as e:
+            print(f"❌ BOT CRASHED: {type(e).__name__}: {str(e)[:200]}", flush=True)
+            logging.getLogger("financialbot").error("Unexpected polling error — restarting container", exc_info=True)
+            raise
 

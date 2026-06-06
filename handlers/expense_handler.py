@@ -11,7 +11,8 @@ from messages import (
     ADD_PAYMENT_PROMPT, PAYMENT_PIX, PAYMENT_DINHEIRO, PAYMENT_CREDITO,
     ADD_CATEGORY_PROMPT, ADD_CATEGORY_CUSTOM_PROMPT, CATEGORY_OTHER,
     VALUE_INVALID, VALUE_MUST_BE_POSITIVE, NAME_EMPTY, NAME_TOO_LONG,
-    NAME_NOT_ALPHANUMERIC, INSTALLMENTS_INVALID, INSTALLMENTS_TOO_LARGE,
+    NAME_NOT_ALPHANUMERIC,
+    INSTALLMENTS_INVALID, INSTALLMENTS_TOO_LARGE,
     DELETE_PROMPT, DELETE_ID_INVALID, DELETE_NOT_FOUND,
     DELETE_CONFIRM_PROMPT, DELETE_SUCCESS, DELETE_CANCELLED,
     SEARCH_PROMPT, SEARCH_NO_RESULTS, SEARCH_RESULT_FORMAT,
@@ -243,15 +244,22 @@ class ExpenseHandler(BaseHandler):
         category_id = user_state.get("category_id")
         payment_method = user_state.get("payment_method")
 
-        alert = self.expense_service.create_expense(
-            user_id=user_id,
-            name=name_despesa,
-            amount=valor_despesa,
-            installments=installment,
-            date=date_despesa,
-            category_id=category_id,
-            payment_method=payment_method,
-        )
+        try:
+            alert = self.expense_service.create_expense(
+                user_id=user_id,
+                name=name_despesa,
+                amount=valor_despesa,
+                installments=installment,
+                date=date_despesa,
+                category_id=category_id,
+                payment_method=payment_method,
+            )
+        except ValueError as e:
+            error_key = str(e)
+            user_msg = ERROR_MESSAGES.get(error_key,
+                                           f"❌ Erro ao salvar despesa: {error_key[:100]}")
+            self.send_error(chat_id, user_msg)
+            return
 
         self.state.clear_user_state(user_id)
 
@@ -496,7 +504,6 @@ class ExpenseHandler(BaseHandler):
                     elif field == "EDIT_INSTALLMENTS":
                         current_value = str(expense.installment)
                     elif field == "EDIT_CATEGORY":
-                        from domain.models import Categories
                         cats = self.expense_service.get_categories(user_id)
                         for cid, cname in cats:
                             if cid == expense.category_id:

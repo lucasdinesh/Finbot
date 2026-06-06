@@ -248,10 +248,16 @@ class LocalRepository(IExpenseRepository):
                 "INSERT OR IGNORE INTO categories (name, user_id) VALUES (?, ?)",
                 (name, user_id),
             )
-            cursor.execute(
-                "SELECT id FROM categories WHERE name = ? AND user_id IS ?",
-                (name, user_id),
-            )
+            if user_id is not None:
+                cursor.execute(
+                    "SELECT id FROM categories WHERE name = ? AND user_id = ?",
+                    (name, user_id),
+                )
+            else:
+                cursor.execute(
+                    "SELECT id FROM categories WHERE name = ? AND user_id IS NULL",
+                    (name,),
+                )
             return cursor.fetchone()[0]
 
     def get_category_total_for_month(self, user_id: int, category_id: int, month: int, year: int) -> float:
