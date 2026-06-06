@@ -118,6 +118,10 @@ class RecurringHandler(BaseHandler):
             self.send_error(chat_id, NAME_EMPTY)
             self.register_next_handler(message, self.process_custom_category)
             return
+        if len(name) > 50:
+            self.send_error(chat_id, NAME_TOO_LONG)
+            self.register_next_handler(message, self.process_custom_category)
+            return
 
         cat_id = self.expense_service.create_category(name, user_id)
         self.state.update_user_state(user_id, "rec_category_id", cat_id)

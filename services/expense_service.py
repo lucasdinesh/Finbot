@@ -4,9 +4,13 @@ from typing import Optional, List
 from datetime import datetime
 from domain.models import Expenses
 from database import IExpenseRepository
+from utils.validators import ExpenseValidator
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+
+_VALID_PAYMENT_METHODS = frozenset({"pix", "dinheiro", "credito"})
 
 
 class ExpenseService:
@@ -14,6 +18,36 @@ class ExpenseService:
 
     def __init__(self, repository: IExpenseRepository):
         self.repository = repository
+
+    @staticmethod
+    def _validate_date(date: str) -> None:
+        try:
+            datetime.strptime(date.strip(), "%d-%m-%Y")
+        except ValueError:
+            raise ValueError("DATE_NOT_SPECIFIED")
+
+    @staticmethod
+    def _validate_amount(amount: object) -> None:
+        if not isinstance(amount, (int, float)) or amount <= 0:
+            raise ValueError("VALUE_MUST_BE_POSITIVE")
+
+    @staticmethod
+    def _validate_name(name: str) -> None:
+        is_valid, err = ExpenseValidator.validate_name(name)
+        if not is_valid:
+            raise ValueError(err)
+
+    @staticmethod
+    def _validate_installments(installments: object) -> None:
+        if not isinstance(installments, int) or installments < 1 or installments > 1000:
+            raise ValueError("INSTALLMENTS_INVALID")
+
+    @staticmethod
+    def _validate_payment_method(payment_method: object) -> None:
+        if payment_method is not None:
+            pm = str(payment_method).lower().strip()
+            if pm not in _VALID_PAYMENT_METHODS:
+                raise ValueError("PAYMENT_METHOD_INVALID")
 
     def create_expense(
         self,
@@ -26,10 +60,12 @@ class ExpenseService:
         payment_method: str = None,
     ) -> Optional[str]:
         if date:
-            try:
-                datetime.strptime(date.strip(), "%d-%m-%Y")
-            except ValueError:
-                raise ValueError("DATE_NOT_SPECIFIED")
+            self._validate_date(date)
+
+        self._validate_amount(amount)
+        self._validate_name(name)
+        self._validate_installments(installments)
+        self._validate_payment_method(payment_method)
 
         logger.info(
             "Saving expense: user=%d, name=%s, amount=%.2f, installments=%d, date=%s, category_id=%s, payment_method=%s",
@@ -118,6 +154,16 @@ class ExpenseService:
         return self.repository.search_by_name(user_id, query)
 
     def update_expense(self, expense_id: int, **kwargs) -> None:
+        if "amount" in kwargs:
+            self._validate_amount(kwargs["amount"])
+        if "name" in kwargs:
+            self._validate_name(kwargs["name"])
+        if "installment" in kwargs:
+            self._validate_installments(kwargs["installment"])
+        if "date" in kwargs and kwargs["date"] is not None:
+            self._validate_date(kwargs["date"])
+        if "payment_method" in kwargs:
+            self._validate_payment_method(kwargs["payment_method"])
         logger.info("update_expense(id=%d, kwargs=%s)", expense_id, kwargs)
         self.repository.update(expense_id, **kwargs)
 
@@ -125,24 +171,37 @@ class ExpenseService:
         return self.repository.get_all_categories(user_id)
 
     def create_category(self, name: str, user_id: int | None = None) -> int:
+        if not name:
+            raise ValueError("NAME_EMPTY")
+        if len(name) > 100:
+            raise ValueError("NAME_TOO_LONG")
         return self.repository.create_category(name, user_id)
 
     def get_category_total_for_month(self, user_id: int, category_id: int, month: int, year: int) -> float:
         return self.repository.get_category_total_for_month(user_id, category_id, month, year)
 
     def set_budget(self, user_id: int, category_id: int, month: int, year: int, amount: float) -> None:
+        self._validate_amount(amount)
         self.repository.set_budget(user_id, category_id, month, year, amount)
 
     def get_budgets_for_month(self, user_id: int, month: int, year: int) -> list[dict]:
         return self.repository.get_budgets_for_month(user_id, month, year)
 
     def add_savings_goal(self, user_id: int, name: str, target_amount: float, deadline: str | None) -> int:
+        if not name:
+            raise ValueError("NAME_EMPTY")
+        if len(name) > 100:
+            raise ValueError("NAME_TOO_LONG")
+        self._validate_amount(target_amount)
+        if deadline is not None:
+            self._validate_date(deadline)
         return self.repository.add_savings_goal(user_id, name, target_amount, deadline)
 
     def get_savings_goals(self, user_id: int) -> list[dict]:
         return self.repository.get_savings_goals(user_id)
 
     def contribute_to_goal(self, goal_id: int, amount: float) -> None:
+        self._validate_amount(amount)
         self.repository.contribute_to_goal(goal_id, amount)
 
     def delete_savings_goal(self, goal_id: int) -> None:
@@ -151,6 +210,15 @@ class ExpenseService:
     def add_recurring_expense(self, user_id: int, name: str, amount: float,
                               category_id: int | None, payment_method: str | None,
                               day_of_month: int) -> int:
+        if not name:
+            raise ValueError("NAME_EMPTY")
+        if len(name) > 100:
+            raise ValueError("NAME_TOO_LONG")
+        self._validate_amount(amount)
+        if payment_method is not None:
+            self._validate_payment_method(payment_method)
+        if not isinstance(day_of_month, int) or day_of_month < 1 or day_of_month > 31:
+            raise ValueError("DAY_INVALID")
         return self.repository.add_recurring_expense(user_id, name, amount, category_id, payment_method, day_of_month)
 
     def get_recurring_expenses(self, user_id: int) -> list[dict]:
