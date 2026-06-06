@@ -412,6 +412,7 @@ class ReceiptHandler(BaseHandler):
         keyboard.add(
             types.InlineKeyboardButton(CATEGORY_OTHER, callback_data="RCCAT_OTHER")
         )
+        self.bot.clear_step_handler_by_chat_id(chat_id)
         msg = self.bot.send_message(chat_id, ADD_CATEGORY_PROMPT, reply_markup=keyboard)
         self.register_next_handler(msg, self._handle_unexpected_receipt_category_text, chat_id, user_id)
 

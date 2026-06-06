@@ -206,6 +206,7 @@ class ExpenseHandler(BaseHandler):
 
         self.state.update_user_state(user_id, "category_id", None)
         self.state.update_user_state(user_id, "categories_data", categories)
+        self.bot.clear_step_handler_by_chat_id(chat_id)
         msg = self.bot.send_message(chat_id, ADD_CATEGORY_PROMPT, reply_markup=keyboard)
         self.register_next_handler(msg, self._handle_unexpected_category_text, chat_id, user_id)
 
@@ -617,6 +618,7 @@ class ExpenseHandler(BaseHandler):
         keyboard.add(
             types.InlineKeyboardButton(CATEGORY_OTHER, callback_data="EDIT_CAT_OTHER")
         )
+        self.bot.clear_step_handler_by_chat_id(chat_id)
         msg = self.bot.send_message(chat_id, ADD_CATEGORY_PROMPT, reply_markup=keyboard)
         self.register_next_handler(msg, self._handle_unexpected_edit_category_text, chat_id, user_id)
 

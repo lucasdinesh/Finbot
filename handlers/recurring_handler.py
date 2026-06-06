@@ -88,7 +88,17 @@ class RecurringHandler(BaseHandler):
             )
         keyboard.add(types.InlineKeyboardButton(CATEGORY_OTHER, callback_data="RCAT_OTHER"))
         self.state.update_user_state(user_id, "rec_cat_data", categories)
-        self.bot.send_message(chat_id, ADD_CATEGORY_PROMPT, reply_markup=keyboard)
+        self.bot.clear_step_handler_by_chat_id(chat_id)
+        msg = self.bot.send_message(chat_id, ADD_CATEGORY_PROMPT, reply_markup=keyboard)
+        self.register_next_handler(msg, self._handle_unexpected_rec_category_text, chat_id, user_id)
+
+    def _handle_unexpected_rec_category_text(self, message, chat_id, user_id):
+        text = self._get_text(message)
+        if self.is_cancel_command(text):
+            self.state.clear_user_state(user_id)
+            return self.handle_cancel(chat_id)
+        self.send_error(message.chat.id, "❌ Use os botões para selecionar uma categoria.")
+        self._ask_category(chat_id, user_id)
 
     def handle_category_callback(self, call) -> None:
         user_id = call.from_user.id
