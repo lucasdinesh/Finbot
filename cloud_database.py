@@ -166,8 +166,11 @@ class PostgresRepository(IExpenseRepository):
             pass
 
     def _row_to_expense(self, row):
+        date_val = row[6]
+        if hasattr(date_val, 'strftime'):
+            date_val = date_val.strftime('%d-%m-%Y')
         return Expenses(id=row[0], user_id=row[1], local_id=row[2], name=row[3],
-                        amount=row[4], installment=row[5], date=row[6],
+                        amount=row[4], installment=row[5], date=date_val,
                         category_id=row[7], payment_method=row[8])
 
     EXPENSE_COLS = "id, user_id, local_id, name, amount, installment, date, category_id, payment_method"
