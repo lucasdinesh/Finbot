@@ -514,6 +514,27 @@ class ExpenseHandler(BaseHandler):
             self.bot.answer_callback_query(call.id)
             return
 
+        if field.startswith("EDIT_INST_"):
+            if field == "EDIT_INST_OTHER":
+                self.bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=None)
+                self.state.update_user_state(user_id, "edit_field", "EDIT_INSTALLMENTS")
+                msg = self.bot.send_message(chat_id, INSTALLMENTS_PROMPT_MORE)
+                self.register_next_handler(msg, self.process_edit_value)
+                self.bot.answer_callback_query(call.id)
+                return
+            installment = int(field.replace("EDIT_INST_", ""))
+            self.bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=None)
+            expense_id = self.state.get_user_state(user_id).get("edit_expense_id")
+            if expense_id:
+                try:
+                    self.expense_service.update_expense(expense_id, installment=installment)
+                    self.send_success(chat_id, EDIT_SUCCESS)
+                except Exception as e:
+                    self.send_error(chat_id, f"❌ Erro ao editar: {str(e)[:100]}")
+            self.state.clear_user_state(user_id)
+            self.bot.answer_callback_query(call.id)
+            return
+
         field_map = {
             "EDIT_VALUE": "valor",
             "EDIT_NAME": "nome",
@@ -533,6 +554,8 @@ class ExpenseHandler(BaseHandler):
             self._ask_edit_payment(chat_id, user_id)
         elif field == "EDIT_CATEGORY":
             self._ask_edit_category(chat_id, user_id)
+        elif field == "EDIT_INSTALLMENTS":
+            self._ask_edit_installments(chat_id, user_id)
         else:
             expense_id = self.state.get_user_state(user_id).get("edit_expense_id")
             current_value = ""
@@ -587,6 +610,17 @@ class ExpenseHandler(BaseHandler):
             types.InlineKeyboardButton(CATEGORY_OTHER, callback_data="EDIT_CAT_OTHER")
         )
         self.bot.send_message(chat_id, ADD_CATEGORY_PROMPT, reply_markup=keyboard)
+
+    def _ask_edit_installments(self, chat_id: int, user_id: int) -> None:
+        """Show installment inline buttons (1-12) during edit, with text fallback."""
+        keyboard = types.InlineKeyboardMarkup(row_width=6)
+        keyboard.add(*[
+            types.InlineKeyboardButton(str(i), callback_data=f"EDIT_INST_{i}")
+            for i in range(1, 13)
+        ])
+        self.bot.send_message(chat_id, ADD_INSTALLMENTS_PROMPT, reply_markup=keyboard)
+        msg = self.bot.send_message(chat_id, INSTALLMENTS_PROMPT_MORE)
+        self.register_next_handler(msg, self.process_edit_value)
 
     def _save_edit_payment(self, chat_id: int, user_id: int, payment_method: str) -> None:
         """Save payment method edit and finish."""
@@ -673,8 +707,7 @@ class ExpenseHandler(BaseHandler):
             is_valid, val, err = self.validator.validate_installments(new_value)
             if not is_valid:
                 self.send_error(chat_id, ERROR_MESSAGES.get(err, "Parcelas inválidas"))
-                msg = self.bot.send_message(chat_id, "✏️ Digite o número de parcelas:")
-                self.register_next_handler(msg, self.process_edit_value)
+                self._ask_edit_installments(chat_id, user_id)
                 return
             update_kwargs["installment"] = val
 
