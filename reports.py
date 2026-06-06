@@ -311,7 +311,7 @@ class ReportGenerator:
             return "Nenhuma despesa encontrada."
 
         text = "📋 *Despesas:*\n\n"
-        for expense in expenses:
+        for expense in sorted(expenses, key=lambda e: e.local_id or 0):
             text += f"• [#{expense.local_id}] {expense.name}\n"
             text += f"  💵 R${float(expense.amount):,.2f} | "
             text += f"📅 {expense.date} | "
