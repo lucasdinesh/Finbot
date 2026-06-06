@@ -557,7 +557,8 @@ class ReceiptHandler(BaseHandler):
         import re
         date_str = self._get_text(message).lower()
 
-        if date_str == "não especificado":
+        from services.expense_service import _normalize
+        if _normalize(date_str) == "não especificado":
             logger.warning("Date is 'Não especificado'")
             self.send_error(chat_id, DATE_NOT_SPECIFIED)
             current_date = parsed.get("date") or "não identificada"

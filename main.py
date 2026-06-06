@@ -60,13 +60,15 @@ class ExpenseRepositorySingleton:
 BOT_USERNAME: Final = "ufrgs_financialbot"
 
 
-def global_exception_handler(exception: Exception) -> bool:
+class ExceptionHandler:
     """Catch all unhandled handler exceptions so the bot doesn't crash."""
-    logging.error("Unhandled handler error: %s: %s", type(exception).__name__, exception, exc_info=True)
-    return True  # Don't re-raise, keep the bot running
+
+    def handle(self, exception: Exception) -> bool:
+        logging.error("Unhandled handler error: %s: %s", type(exception).__name__, exception, exc_info=True)
+        return True
 
 
-bot = telebot.TeleBot(TOKEN, exception_handler=global_exception_handler)
+bot = telebot.TeleBot(TOKEN, exception_handler=ExceptionHandler())
 
 # Initialize dependency injection
 state_manager = ConversationManager()
