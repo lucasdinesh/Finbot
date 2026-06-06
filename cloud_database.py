@@ -265,7 +265,7 @@ class PostgresRepository(IExpenseRepository):
     def update(self, id: int, **kwargs: object) -> None:
         """Update an expense."""
         update_fields = {}
-        for key in ['name', 'amount', 'installment', 'date']:
+        for key in ['name', 'amount', 'installment', 'date', 'category_id', 'payment_method']:
             if key not in kwargs:
                 continue
             val = kwargs[key]
