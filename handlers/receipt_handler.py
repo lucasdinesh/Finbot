@@ -151,7 +151,7 @@ class ReceiptHandler(BaseHandler):
                      parsed.get("amount"), parsed.get("store_name"),
                      parsed.get("date"), parsed.get("confidence", 0))
 
-        if parsed["amount"] is None:
+        if parsed["amount"] is None or parsed["amount"] <= 0:
             logger.info("No amount detected — starting manual input")
             self._start_manual_value(chat_id, user_id)
             return
@@ -191,8 +191,8 @@ class ReceiptHandler(BaseHandler):
         amount = parsed.get("amount")
         name = parsed.get("store_name", "Despesa")
 
-        if amount is None:
-            logger.warning("User %d confirmed but amount is None", user_id)
+        if amount is None or amount <= 0:
+            logger.warning("User %d confirmed but amount is invalid: %s", user_id, amount)
             self.bot.answer_callback_query(call.id, "Valor não identificado.")
             return
 
@@ -522,9 +522,10 @@ class ReceiptHandler(BaseHandler):
             return
 
         name = self._get_text(message)
-        if not name:
-            logger.warning("Empty name submitted")
-            self.send_error(chat_id, NAME_EMPTY)
+        is_valid, error_key = self.validator.validate_name(name)
+        if not is_valid:
+            logger.warning("Invalid name submitted: %s (error=%s)", name, error_key)
+            self.send_error(chat_id, self._ERROR_MAP.get(error_key, NAME_EMPTY))
             current_name = str(parsed.get("store_name") or "Despesa")
             msg = self.bot.send_message(
                 chat_id, SCAN_EDIT_NAME.format(current=current_name),
